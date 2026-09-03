@@ -118,10 +118,16 @@ def repos() -> list[Path]:
 
     `ghq list` を呼ばないのは、ghq が入っていない場所でも動くようにする
     ため（掟6・依存を増やさない）。ghq の構造は <host>/<user>/<repo> 固定。
+
+    **worktree は数えない。** `git worktree add` で作った作業場所は本体と
+    同じ履歴を持つので、両方を走査すると同じコミットを 2 回数える（実測で
+    8,320 件のうち 524 件が二重だった。worktree を 1 つ片付けただけで
+    数字が動いてしまう）。本体の `.git` はディレクトリ、worktree の
+    `.git` はファイルなので、そこで見分ける。
     """
     if not GHQ.is_dir():
         return []
-    return sorted(p.parent for p in GHQ.glob("*/*/*/.git"))
+    return sorted(p.parent for p in GHQ.glob("*/*/*/.git") if p.is_dir())
 
 
 def fold(slug: str, known: set[str]) -> str:

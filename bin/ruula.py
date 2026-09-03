@@ -56,6 +56,7 @@ def rooms() -> list[tuple[Path, str]]:
         (KYOTEN / "soto", "soto"),
         (KYOTEN / "teato", "teato"),
         (KYOTEN / "fukuro", "fukuro"),
+        (KYOTEN / "status", "status"),
         (READING_NOTES, "reading-notes"),
     ]
 
@@ -282,7 +283,7 @@ def main() -> int:
     ap.add_argument("--quiet", action="store_true",
                     help="刻み直した1行だけ報告する（定時便用）")
     ap.add_argument("--room", choices=["bouken", "kotonoha", "soto", "teato", "fukuro",
-                             "reading-notes"],
+                             "status", "reading-notes"],
                     help="部屋で絞る")
     ap.add_argument("--project", help="プロジェクト名で絞る（部分一致）")
     ap.add_argument("--since", metavar="YYYY-MM-DD")
