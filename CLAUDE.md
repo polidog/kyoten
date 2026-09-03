@@ -25,7 +25,7 @@ Slack スレッド全文、認証まわりの試行錯誤——全部入って�
   （未設定だと30日でログが消える）。
 - **LV2 完了**（2026-09-03）— ことのは 550発言 / 7日ぶん、
   ルーラ 968ファイル / 24,660かたまり（索引 87MB・刻み直し3秒）。
-  共通の小道具は `bin/dougu.py` に切り出し済み。
+  共通の小道具は `bin/dougu.ts` に切り出し済み。
 - **LV3 完了**（2026-09-03）— そとのこえ 2,424ファイル / 11MB。
   polidog.jp の記事 1,307本（2004-12-26 〜。索引の件数と一致し、取りこぼしゼロ）、
   Bluesky 373日ぶん、Misskey 744日ぶん（どちらも 2023年3月から全履歴）。
@@ -33,7 +33,7 @@ Slack スレッド全文、認証まわりの試行錯誤——全部入って�
   [#6](https://github.com/polidog/web/pull/6)、マージ済み）。
   Cloudflare の Cache Rule も設定済み。
 - **LV4 完了**（2026-09-03）— 盗賊。
-  - **よるのとばり** `bin/yorunotobari.py` を systemd user timer
+  - **よるのとばり** `bin/yorunotobari.ts` を systemd user timer
     （`kyoten.timer`、毎晩 03:00・`Persistent=true`）に載せた。
   - **てのあと** 856日ぶん / 8,320コミット（62リポジトリ・2018-11-16 〜）と、
     会話ログから拾ったつまずき 90件。
@@ -41,6 +41,9 @@ Slack スレッド全文、認証まわりの試行錯誤——全部入って�
   - ルーラは 39,624かたまり / 索引 114MB。拠点は全部きょうかい済み。
 - **LV5 完了**（2026-09-03）— ステータス・とくぎ 71枚・年表 23年
   （2004 〜 2026）。ルーラは 40,774かたまり。
+- **TypeScript へ移行**（2026-09-03）— 9本 3,600行を Python から書き直した。
+  1本ずつ「同じ拠点に対して1バイトも違わない出力か」を `diff -r` で確かめて
+  ある。Node の標準ライブラリだけで、ビルドも npm も無い。
 - **LV6 完了**（2026-09-03）— おつげ 776週（2004-W52 〜 2026-W36）。
   配達はせず拠点に置くだけにした（掟4の3例はどれも外に出す口を持っていた）。
   ルーラは 43,759かたまり / 5,209ファイル。
@@ -73,7 +76,12 @@ Slack スレッド全文、認証まわりの試行錯誤——全部入って�
    手書き前提の仕組みを作って全部止まっている（`00_思考`、Discord秘書、agent-tracer）。
    素材はすべてログから機械が起こす。
 5. **書き込み口を絞る** — 1つの部屋の書き手は1つ。読みは全開。
-6. **依存を増やさない** — `uv` は入っていない。Python は標準ライブラリだけで書く。
+6. **依存を増やさない** — TypeScript を **Node の標準ライブラリだけ**で書く。
+   `npm install` は要らないし `node_modules` も無い。ビルドもしない
+   （Node 24+ が `.ts` の型注釈を剥がして直接実行する）。そのぶん
+   **実行時の意味を持つ構文は使えない** —— `enum`・`namespace`・
+   `constructor(readonly x)`・decorator は落ちる。型検査は走らせていない
+   （`tsc` を入れると依存が増える）ので、正しさは出力の突き合わせで見る。
 
 ## 踏んだ罠（同じところを踏まない）
 
@@ -149,6 +157,13 @@ Slack スレッド全文、認証まわりの試行錯誤——全部入って�
     おつげが毎晩書き換わり、「あのとき何と言われたか」が残らなくなる。
     週を古い順に見て、その週の終わりまでに分かっていたことだけで書く。
 
+23. **JS の `.` は `\r` にマッチしない**（Python の `.` はする）。会話ログには
+    CR があるので `^## (.+)$` だと見出しを取りこぼす。`[^\n]` で書く。
+24. **`.slice(0, n)` は UTF-16 単位。** Python の `[:n]` はコードポイント。
+    絵文字が混ざると1文字ずれる。`dougu.ts` の `take()` を使う。
+25. **`execFileSync` は成功時の stderr を返さない。** ルーラは stderr に報告
+    するので、定時便から呼ぶと黙って終わったことにされる。`spawnSync` を使う。
+
 ## 次にやること
 
 ### 残していること
@@ -161,7 +176,8 @@ Slack スレッド全文、認証まわりの試行錯誤——全部入って�
 - **おつげの配達。** いまは `otsuge/` に置くだけ。外に出す口は、掟4に並ぶ
   3例（`00_思考`・Discord秘書・agent-tracer）がどれもそこで止まっているので、
   読む習慣がついてから考える。
-- **kyoten にリモートが無い。** 公開してよいコードだが、まだローカルだけ。
+- **型検査を走らせていない。** `tsc` は npm 依存になるので入れていない。
+  エディタの LSP 頼み。CI を建てるなら `npx -y typescript` を検討する。
 
 ### よるのとばりを触るとき
 
@@ -179,17 +195,17 @@ unit は `systemd/` にあり、`~/.config/systemd/user/` から symlink して
 作ったら必ず（2回流して `upd 0` になるか＝冪等）:
 
 ```bash
-bin/utsushi.py --quiet
-bin/kotonoha.py --quiet
-bin/sotonokoe.py --quiet
-bin/teato.py --quiet
-bin/fukuro.py --quiet
-bin/status.py --quiet
-bin/otsuge.py --quiet
-bin/ruula.py --rebuild && bin/ruula.py "検索語"
+bin/utsushi.ts --quiet
+bin/kotonoha.ts --quiet
+bin/sotonokoe.ts --quiet
+bin/teato.ts --quiet
+bin/fukuro.ts --quiet
+bin/status.ts --quiet
+bin/otsuge.ts --quiet
+bin/ruula.ts --rebuild && bin/ruula.ts "検索語"
 ```
 
-まとめて流すなら `bin/yorunotobari.py`。順番に意味がある（ふくろは
+まとめて流すなら `bin/yorunotobari.ts`。順番に意味がある（ふくろは
 拠点に書かれたものを畳むので必ず最後）。
 
 ことのはを触ったら、混入が戻っていないかも見る:
@@ -202,31 +218,31 @@ grep -c '<command-name>\|<local-command\|<task-notification>' \
 ## 使い方
 
 ```bash
-bin/utsushi.py              # ぼうけんのしょを写す
-bin/utsushi.py --dry-run    # 書かずに結果だけ
-bin/utsushi.py --since 2026-08-01
-bin/utsushi.py --quiet      # 1行だけ（定時便用）
+bin/utsushi.ts              # ぼうけんのしょを写す
+bin/utsushi.ts --dry-run    # 書かずに結果だけ
+bin/utsushi.ts --since 2026-08-01
+bin/utsushi.ts --quiet      # 1行だけ（定時便用）
 
-bin/kotonoha.py             # ことのはを抜く（引数は utsushi と同じ）
+bin/kotonoha.ts             # ことのはを抜く（引数は utsushi と同じ）
 
-bin/sotonokoe.py            # そとのこえを集める（引数は utsushi と同じ）
-bin/sotonokoe.py --source bluesky            # ソースを絞る
-bin/sotonokoe.py --site http://127.0.0.1:8000  # 手元の polidog.jp を見る
+bin/sotonokoe.ts            # そとのこえを集める（引数は utsushi と同じ）
+bin/sotonokoe.ts --source bluesky            # ソースを絞る
+bin/sotonokoe.ts --site http://127.0.0.1:8000  # 手元の polidog.jp を見る
 
-bin/teato.py                # てのあと（引数は utsushi と同じ）
-bin/fukuro.py               # ふくろ（--dry-run / --quiet）
-bin/status.py               # ステータス・とくぎ・年表（同上）
-bin/otsuge.py               # 週ごとのおつげ（同上）
+bin/teato.ts                # てのあと（引数は utsushi と同じ）
+bin/fukuro.ts               # ふくろ（--dry-run / --quiet）
+bin/status.ts               # ステータス・とくぎ・年表（同上）
+bin/otsuge.ts               # 週ごとのおつげ（同上）
 
-bin/yorunotobari.py         # 定時便（全部流してきょうかいまで）
-bin/yorunotobari.py --dry-run
-bin/yorunotobari.py --no-commit
+bin/yorunotobari.ts         # 定時便（全部流してきょうかいまで）
+bin/yorunotobari.ts --dry-run
+bin/yorunotobari.ts --no-commit
 
-bin/ruula.py "検索語"        # ルーラ。素材が新しければ勝手に刻み直す
-bin/ruula.py "検索語" --room kotonoha --project polidog/kyoten --since 2026-09-01
-bin/ruula.py --rebuild      # 刻み直すだけ
-bin/ruula.py --stats        # 索引の中身を数える
-bin/ruula.py --rebuild --quiet  # 刻み直して1行だけ（定時便用）
+bin/ruula.ts "検索語"        # ルーラ。素材が新しければ勝手に刻み直す
+bin/ruula.ts "検索語" --room kotonoha --project polidog/kyoten --since 2026-09-01
+bin/ruula.ts --rebuild      # 刻み直すだけ
+bin/ruula.ts --stats        # 索引の中身を数える
+bin/ruula.ts --rebuild --quiet  # 刻み直して1行だけ（定時便用）
 ```
 
 `KYOTEN` 環境変数で拠点の場所を変えられる（既定 `~/Documents/Obsidian/kyoten`）。

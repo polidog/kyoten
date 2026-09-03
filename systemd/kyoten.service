@@ -10,14 +10,17 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 
-# user service は最小の PATH で始まる。yorunotobari は python を
-# sys.executable で呼ぶので自分では困らないが、**きょうかいで git を
-# 呼ぶ**ので /usr/bin が要る。shebang の env も同じ。
-Environment=PATH=/usr/local/bin:/usr/bin:/bin
+# user service は最小の PATH で始まる。ここに要るのは3つ:
+#   - **node** —— 道具は `#!/usr/bin/env node` で始まる .ts。mise 管理なので
+#     shims を通す（バージョンを上げても追従する。shim 自体はバイナリで、
+#     mise 本体は /usr/bin にある）。
+#   - **git** —— きょうかいで呼ぶ。
+#   - 道具どうしの呼び出しは PATH に依存しない（process.execPath を使う）。
+Environment=PATH=%h/.local/share/mise/shims:/usr/local/bin:/usr/bin:/bin
 
-ExecStart=%h/ghq/github.com/polidog/kyoten/bin/yorunotobari.py
+ExecStart=%h/ghq/github.com/polidog/kyoten/bin/yorunotobari.ts
 
-# 実測 20 秒。SNS の全履歴を辿る日で 2 分。相手が応答を止めたときに
+# 実測 14 秒。SNS の全履歴を辿る日で 2 分。相手が応答を止めたときに
 # 一晩ぶら下がらないよう上限を置く（道具ごとにも 600 秒の上限がある）。
 TimeoutStartSec=1800
 

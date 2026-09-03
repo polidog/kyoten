@@ -1,3 +1,7 @@
-__pycache__/
-*.pyc
-.venv/
+# Node が置くもの（依存はゼロだが、npm を一度でも叩くと生える）
+node_modules/
+npm-debug.log*
+
+# 索引そのものは拠点の側にあるが、うっかり持ち込まないよう書いておく
+*.db
+*.db-*

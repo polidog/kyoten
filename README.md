@@ -46,19 +46,21 @@ Claude Code と Codex の会話ログを Markdown に写し、検索できるよ
   .ruula.db          ルーラの索引（機械生成・git 管理外）
 ```
 
-道具は `bin/` に9本。共通の小道具は `bin/dougu.py` に置いてある。
+道具は `bin/` に9本。**TypeScript を Node の標準ライブラリだけで書いてある**
+（`npm install` は要らない。`node_modules` も生えない）。共通の小道具は
+`bin/dougu.ts`、引数まわりは `bin/cli.ts`。
 
 | 道具 | 何をするか |
 |---|---|
-| `utsushi.py` | jsonl → ぼうけんのしょ |
-| `kotonoha.py` | jsonl → ことのは |
-| `sotonokoe.py` | polidog.jp・Bluesky・Misskey → そとのこえ |
-| `teato.py` | git と会話ログ → てのあと |
-| `fukuro.py` | 拠点の各部屋 → ふくろ |
-| `status.py` | 拠点の各部屋 → ステータス・とくぎ・年表 |
-| `otsuge.py` | 拠点の各部屋 → 週ごとのおつげ |
-| `ruula.py` | 上を全部と reading-notes を全文検索 |
-| `yorunotobari.py` | 順に流して拠点をきょうかいする定時便 |
+| `utsushi.ts` | jsonl → ぼうけんのしょ |
+| `kotonoha.ts` | jsonl → ことのは |
+| `sotonokoe.ts` | polidog.jp・Bluesky・Misskey → そとのこえ |
+| `teato.ts` | git と会話ログ → てのあと |
+| `fukuro.ts` | 拠点の各部屋 → ふくろ |
+| `status.ts` | 拠点の各部屋 → ステータス・とくぎ・年表 |
+| `otsuge.ts` | 拠点の各部屋 → 週ごとのおつげ |
+| `ruula.ts` | 上を全部と reading-notes を全文検索 |
+| `yorunotobari.ts` | 順に流して拠点をきょうかいする定時便 |
 
 素材は下から上へ流れる。1階（ぼうけんのしょ・ことのは・そとのこえ・
 てのあと）は外から集め、**2階（ふくろ・ステータス）は拠点の中しか見ない**
@@ -69,16 +71,17 @@ Claude Code と Codex の会話ログを Markdown に写し、検索できるよ
 ## utsushi — ぼうけんのしょの書き写し
 
 ```bash
-bin/utsushi.py                    # 全部写す
-bin/utsushi.py --dry-run          # 書かずに結果だけ見る
-bin/utsushi.py --since 2026-08-01 # この日以降だけ
-bin/utsushi.py --quiet            # 1行だけ報告する（定時便用）
+bin/utsushi.ts                    # 全部写す
+bin/utsushi.ts --dry-run          # 書かずに結果だけ見る
+bin/utsushi.ts --since 2026-08-01 # この日以降だけ
+bin/utsushi.ts --quiet            # 1行だけ報告する（定時便用）
 ```
 
 環境変数 `KYOTEN` で拠点の場所を変えられる。既定は `~/Documents/Obsidian/kyoten`。
 
 ### 掟
 
+- **依存を増やさない** — Node の標準ライブラリだけ。`npm install` は要らない。
 - **決定論的** — 同じ入力なら必ず同じ出力。生成日時など揺れる値は書かない。
 - **冪等** — 内容が変わらなければファイルに触れない（mtime も動かさない）。
 - **原文ママ** — 発話は加工しない。長大なツール出力の末尾だけ省略し、その旨を明記する。
@@ -119,10 +122,10 @@ bin/utsushi.py --quiet            # 1行だけ報告する（定時便用）
 ## kotonoha — ことのは（自分の発言だけ）
 
 ```bash
-bin/kotonoha.py                    # 全部抜く
-bin/kotonoha.py --dry-run
-bin/kotonoha.py --since 2026-08-01
-bin/kotonoha.py --quiet
+bin/kotonoha.ts                    # 全部抜く
+bin/kotonoha.ts --dry-run
+bin/kotonoha.ts --since 2026-08-01
+bin/kotonoha.ts --quiet
 ```
 
 ぼうけんのしょ（写し）ではなく **jsonl の原本から直接抜く**。
@@ -157,12 +160,12 @@ Claude Code の「ユーザー行」には本人の入力でないものが大�
 ## sotonokoe — そとのこえ（外に出した言葉）
 
 ```bash
-bin/sotonokoe.py                    # 全部集める
-bin/sotonokoe.py --dry-run
-bin/sotonokoe.py --since 2026-08-01
-bin/sotonokoe.py --quiet
-bin/sotonokoe.py --source bluesky   # ソースを絞る（blog / bluesky / misskey）
-bin/sotonokoe.py --site http://127.0.0.1:8000   # 手元の polidog.jp を見る
+bin/sotonokoe.ts                    # 全部集める
+bin/sotonokoe.ts --dry-run
+bin/sotonokoe.ts --since 2026-08-01
+bin/sotonokoe.ts --quiet
+bin/sotonokoe.ts --source bluesky   # ソースを絞る（blog / bluesky / misskey）
+bin/sotonokoe.ts --site http://127.0.0.1:8000   # 手元の polidog.jp を見る
 ```
 
 ぼうけんのしょとことのはが「閉じた場所での言葉」なのに対して、こちらは
@@ -251,10 +254,10 @@ curl -H 'Accept: application/json' https://polidog.jp/2026/09/01/git-dmb/  # 記
 ## teato — てのあと（作ったもの・詰まったこと）
 
 ```bash
-bin/teato.py                    # 全部
-bin/teato.py --dry-run
-bin/teato.py --since 2026-08-01
-bin/teato.py --quiet
+bin/teato.ts                    # 全部
+bin/teato.ts --dry-run
+bin/teato.ts --since 2026-08-01
+bin/teato.ts --quiet
 ```
 
 素材は2つ。**git** —— `~/ghq` 配下 62 リポジトリから自分のコミット
@@ -272,7 +275,7 @@ bin/teato.py --quiet
 - `862359b` そとのこえを集める
 
 ### さわった
-- `bin/sotonokoe.py`（新規）
+- `bin/sotonokoe.ts`（新規）
 
 ### つまずいた
 - 11:50:56 WebFetch `https://developers.cloudflare.com/cache/how-to/cache-rules/`
@@ -297,9 +300,9 @@ UNIQUE 制約違反、Python の SyntaxError といった、読み返す価値�
 ## fukuro — ふくろ（長期記憶）
 
 ```bash
-bin/fukuro.py                   # 全部
-bin/fukuro.py --dry-run
-bin/fukuro.py --quiet
+bin/fukuro.ts                   # 全部
+bin/fukuro.ts --dry-run
+bin/fukuro.ts --quiet
 ```
 
 拠点に溜まったものを、**プロジェクトごとに1枚**へ畳み直す。他の部屋は
@@ -352,9 +355,9 @@ polidog(25)、omasushi(21)、omakase(21)、マージ(14)、リポジトリ(10)�
 ## status — ステータス・とくぎ・年表（2階）
 
 ```bash
-bin/status.py                   # 全部
-bin/status.py --dry-run
-bin/status.py --quiet
+bin/status.ts                   # 全部
+bin/status.ts --dry-run
+bin/status.ts --quiet
 ```
 
 ふくろが「プロジェクトごとの横串」なら、こちらは「技ごと」と「年ごと」と
@@ -416,9 +419,9 @@ status/nenpyo/<YYYY>.md   年ごと（23枚・2004 〜 2026）
 ## otsuge — おつげ（週ごとの観測）
 
 ```bash
-bin/otsuge.py                   # 全部
-bin/otsuge.py --dry-run
-bin/otsuge.py --quiet
+bin/otsuge.ts                   # 全部
+bin/otsuge.ts --dry-run
+bin/otsuge.ts --quiet
 ```
 
 うらないババが週に1度、拠点を読んで告げる。数の羅列はステータスと年表に
@@ -469,12 +472,12 @@ Bash 28、mcp__claude-in-chrome__computer 13、Edit 7
 ## ruula — ルーラ（全文検索）
 
 ```bash
-bin/ruula.py "検索語"                        # 素材が新しければ勝手に刻み直す
-bin/ruula.py "検索語" --room kotonoha
-bin/ruula.py "検索語" --project polidog/kyoten
-bin/ruula.py "検索語" --since 2026-09-01 -n 5
-bin/ruula.py --rebuild                      # 刻み直すだけ
-bin/ruula.py --stats                        # 索引の中身を数える
+bin/ruula.ts "検索語"                        # 素材が新しければ勝手に刻み直す
+bin/ruula.ts "検索語" --room kotonoha
+bin/ruula.ts "検索語" --project polidog/kyoten
+bin/ruula.ts "検索語" --since 2026-09-01 -n 5
+bin/ruula.ts --rebuild                      # 刻み直すだけ
+bin/ruula.ts --stats                        # 索引の中身を数える
 ```
 
 「行ったことのある場所にしか飛べない」。写しを取った場所だけが引ける。
@@ -493,9 +496,9 @@ status・otsuge を順に流し、ルーラを刻み直して、拠点をきょ�
 （git commit）する。
 
 ```bash
-bin/yorunotobari.py              # 全部流す
-bin/yorunotobari.py --dry-run    # 書かずに、きょうかいもせずに流す
-bin/yorunotobari.py --no-commit  # 集めるけどきょうかいはしない
+bin/yorunotobari.ts              # 全部流す
+bin/yorunotobari.ts --dry-run    # 書かずに、きょうかいもせずに流す
+bin/yorunotobari.ts --no-commit  # 集めるけどきょうかいはしない
 ```
 
 **1つが失敗しても次へ進む。** そとのこえが取りに行けない夜でも、手元の
@@ -537,7 +540,7 @@ journalctl --user -u kyoten.service -o cat  # 何を言ったか
 ### 実装で踏んだ落とし穴
 
 14. **ルーラの報告は stdout ではなく stderr に出る**
-    `ruula.py 語 | grep …` としたときに刻み直しの行が混ざらないよう、
+    `ruula.ts 語 | grep …` としたときに刻み直しの行が混ざらないよう、
     検索結果だけを stdout に流している。定時便が「何も言わずに終わった」と
     言い出したらこれ。名前で分岐せず、stdout が空なら stderr、の順で拾う。
 
@@ -553,6 +556,54 @@ journalctl --user -u kyoten.service -o cat  # 何を言ったか
 17. **`.obsidian/workspace.json` は Obsidian を開くたびに変わる**
     追跡すると、定時便が毎晩それだけをコミットする。拠点の `.gitignore` で
     外した（設定の3ファイルは残す —— 拠点を別の場所へ移したときに要る）。
+
+## 道具の書きかた
+
+```bash
+bin/kotonoha.ts --quiet    # そのまま実行できる（ビルドしない）
+```
+
+**Node 24 以降は `.ts` を直接実行できる**（型注釈を剥がしてから走らせる）。
+だからビルド手順もトランスパイラも要らず、依存はゼロのまま型が書ける。
+代わりに、**実行時の意味を持つ TypeScript 構文は使えない** ——
+`enum`・`namespace`・`constructor(readonly x)`（parameter property）・
+decorator は落ちる。型注釈と `interface` と `type` だけで書く。
+
+型検査は走らせていない（`tsc` を入れると依存が増える）。エディタの LSP に
+任せ、正しさは**出力の突き合わせ**で担保している —— この9本は元々 Python で
+書かれていて、1本ずつ移すたびに「同じ拠点に対して1バイトも違わない出力を
+出すか」を `diff -r` で確かめた。
+
+### 移すときに踏んだ落とし穴
+
+24. **JS の `.` は `\r` にマッチしない**
+    Python の `.` はする。会話ログには CR を含む行があるので（落とし穴2）、
+    `^## (.+)$` のままだと `## 見出し\r` を見出しとして拾えず、ルーラの
+    かたまりが 40,308 → 40,194 に減った。行のパターンは `[^\n]` で書く。
+
+25. **`.slice(0, n)` は UTF-16 の単位で切る**
+    Python の `text[:n]` はコードポイント。絵文字や Nerd Font の私用領域
+    文字が混ざると 1 文字ずれて、内容が同じなのに毎回 updated になる。
+    `[...text].slice(0, n).join("")` で数える（`dougu.ts` の `take()`）。
+
+26. **`execFileSync` は成功したときの stderr を返さない**
+    ルーラは検索結果と混ざらないよう刻み直しの報告を stderr に出すので、
+    定時便から呼ぶと「何も言わずに終わった」ことにされた。`spawnSync` を使う。
+
+27. **`Date` はミリ秒しか持たない**
+    Python の `datetime.isoformat()` はマイクロ秒6桁を出す。拠点の
+    frontmatter に合わせるには 3 桁に `000` を足す（元のログがミリ秒精度
+    なので情報は落ちない）。`dougu.ts` の `isoJst()`。
+
+28. **`JSON.stringify` はキーの順を保つ**
+    Python の `json.dumps(sort_keys=True)` は再帰的に並べ替える。順が違うと
+    内容が同じでも毎回 updated になるので、自分で並べ替える（`sortedJson()`）。
+
+29. **Python の `str(list)` は内部表記を吐く**
+    Codex の command は `["/usr/bin/bash", "-lc", "…"]` という配列で来る
+    ことがあり、Python 版はそれを `str()` に通して
+    `['/usr/bin/bash', '-lc', "…"]` という Python の repr を拠点に書いていた。
+    移すついでに両方とも JSON 表記へ直した。
 
 ## ログを消させない
 

@@ -1,0 +1,9 @@
+{
+  "name": "kyoten",
+  "private": true,
+  "type": "module",
+  "description": "記憶を保全して、そこから自分を見つけ出すための道具箱",
+  "engines": {
+    "node": ">=24"
+  }
+}
