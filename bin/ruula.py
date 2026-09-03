@@ -18,6 +18,7 @@ SQLite FTS5 の trigram トークナイザを使う。日本語を分かち書�
     ruula.py "検索語" --room kotonoha --since 2026-09-01
     ruula.py --rebuild          # 刻み直すだけ
     ruula.py --stats            # 索引の中身を数える
+    ruula.py --rebuild --quiet  # 刻み直して1行だけ（定時便用）
 """
 
 from __future__ import annotations
@@ -276,6 +277,8 @@ def main() -> int:
     ap.add_argument("--rebuild", action="store_true", help="索引を刻み直す")
     ap.add_argument("--no-rebuild", action="store_true", help="古くても刻み直さない")
     ap.add_argument("--stats", action="store_true", help="索引の中身を数える")
+    ap.add_argument("--quiet", action="store_true",
+                    help="刻み直した1行だけ報告する（定時便用）")
     ap.add_argument("--room", choices=["bouken", "kotonoha", "soto", "reading-notes"],
                     help="部屋で絞る")
     ap.add_argument("--project", help="プロジェクト名で絞る（部分一致）")
@@ -300,6 +303,10 @@ def main() -> int:
         return 1
 
     if args.stats or not args.words:
+        # --quiet は定時便のため。刻み直した1行だけ残して、内訳は出さない。
+        if args.quiet and not args.stats:
+            return 0
+
         con = connect()
         meta = dict(con.execute("SELECT k, v FROM meta").fetchall())
         print(f"  ファイル : {int(meta.get('files', 0)):,}")

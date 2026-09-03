@@ -1,0 +1,19 @@
+[Unit]
+Description=よるのとばりを毎晩起こす
+Documentation=https://github.com/polidog/kyoten
+
+[Timer]
+# 03:00 に前日ぶんが確定してから走る。壁時計の予定にするのは、
+# Persistent= が OnCalendar= のタイマーにしか効かないため
+# （man systemd.timer）。ラップトップが夜に閉じていても、次に起きた
+# ときに取り戻す。
+OnCalendar=*-*-* 03:00:00
+Persistent=true
+
+# 分単位でずれても困らない。ずらしておくと、複数台で同じ時刻に
+# API を叩きに行かずに済む。
+AccuracySec=5min
+RandomizedDelaySec=10min
+
+[Install]
+WantedBy=timers.target

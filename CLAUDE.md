@@ -26,12 +26,16 @@ Slack スレッド全文、認証まわりの試行錯誤——全部入って�
 - **LV2 完了**（2026-09-03）— ことのは 550発言 / 7日ぶん、
   ルーラ 968ファイル / 24,660かたまり（索引 87MB・刻み直し3秒）。
   共通の小道具は `bin/dougu.py` に切り出し済み。
-- **LV3 ほぼ完了**（2026-09-03）— そとのこえ。Bluesky 372日ぶん・
-  Misskey 743日ぶん（どちらも 2023年3月から全履歴）を保全。ルーラは
-  28,641かたまり（うち soto 3,946）。
-  **残りは polidog.jp の記事**で、これは [polidog/web#5](https://github.com/polidog/web/pull/5)
-  のマージ・デプロイと Cloudflare の Cache Rule 追加を待っている（下記）。
-- **LV4 が次** — 盗賊（systemd user timer の定時便）。
+- **LV3 完了**（2026-09-03）— そとのこえ 2,424ファイル / 11MB。
+  polidog.jp の記事 1,307本（2004-12-26 〜。索引の件数と一致し、取りこぼしゼロ）、
+  Bluesky 373日ぶん、Misskey 744日ぶん（どちらも 2023年3月から全履歴）。
+  polidog.jp 側には JSON の口を足した（[polidog/web#5](https://github.com/polidog/web/pull/5)・
+  [#6](https://github.com/polidog/web/pull/6)、マージ済み）。
+  Cloudflare の Cache Rule も設定済み。
+- **LV4 の半分**（2026-09-03）— よるのとばり。`bin/yorunotobari.py` を
+  systemd user timer（`kyoten.timer`、毎晩 03:00・`Persistent=true`）に載せた。
+  拠点は全部きょうかい済み（bouken 306 / kotonoha 7 / soto 2,424）。
+- **LV4 の残りが次** — てのあととふくろ。
 
 ## 語彙
 
@@ -108,28 +112,35 @@ Slack スレッド全文、認証まわりの試行錯誤——全部入って�
     書くと過去が消える。取りに行けなかったソースはファイルに触れずに諦める。
     ただし記事は 1本ずつ独立なので、1本落ちても残りは書く。
 
+14. **ルーラの報告は stdout ではなく stderr に出る。** 検索結果だけを stdout に
+    流す作りなので、`| grep` しても混ざらない。定時便が「何も言わずに終わった」と
+    言い出したらこれ。
+15. **systemd user service の PATH は最小。** きょうかいで `git` を呼ぶので
+    `/usr/bin` が要る。`Environment=PATH=` で明示する。
+16. **`git status --porcelain` は未追跡ディレクトリを1行にまとめる。**
+    そのまま数えると「そとのこえ 1」という嘘のきょうかいになる。
+    `--untracked-files=all` を付ける。
+
 ## 次にやること
 
-### まず LV3 の残り — polidog.jp の記事
+### てのあととふくろ（LV4 の残り）
 
-1. [polidog/web#5](https://github.com/polidog/web/pull/5) をマージする
-   （main に push すると GitHub Actions が fly へデプロイする）
-2. **Cloudflare に Cache Rule を 1 本足す**（これが無いと JSON が取れない）
-   - 対象: `(http.request.headers["accept"][0] contains "application/json")`
-   - Cache eligibility: **Bypass cache**
-   - 既存の「Eligible for cache」より**下**に置く。Cache Rules は最初の一致で
-     止まらず、**最後に一致したルールが勝つ**
-     （[Order and priority](https://developers.cloudflare.com/cache/how-to/cache-rules/order/)）
-3. `bin/sotonokoe.py --source blog` を流す（約 1,300 記事）
-4. `bin/ruula.py --rebuild`
+- **てのあと** `teato/` — 作ったもの・詰まったこと
+- **ふくろ** `fukuro/` — 長期記憶（人物・概念・プロジェクト）
 
-手元の写しで通したところは確認済み: 960記事の取り込み、2回目 `upd 0`、
-日本語スラッグ 248本、記事の frontmatter に `updated` を持たせた差分取得。
+どちらも掟4（手で書かせない）に従って、素材はログから機械が起こす。
+何を素材にして、どう畳むかはまだ決めていない。
 
-### LV4 — 盗賊（よるのとばり）
+### よるのとばりを触るとき
 
-systemd user timer で utsushi / kotonoha / sotonokoe を定時に流す。
-`--quiet` は3本とも実装済みなので、あとは unit ファイルと失敗時の扱い。
+```bash
+systemctl --user list-timers kyoten.timer   # 次にいつ起きるか
+systemctl --user start kyoten.service       # いま1回流す
+journalctl --user -u kyoten.service -o cat  # 何を言ったか
+```
+
+unit は `systemd/` にあり、`~/.config/systemd/user/` から symlink して
+ある。直したら `systemctl --user daemon-reload`。
 
 ### 確認すること
 
@@ -163,10 +174,15 @@ bin/sotonokoe.py            # そとのこえを集める（引数は utsushi �
 bin/sotonokoe.py --source bluesky            # ソースを絞る
 bin/sotonokoe.py --site http://127.0.0.1:8000  # 手元の polidog.jp を見る
 
+bin/yorunotobari.py         # 定時便（全部流してきょうかいまで）
+bin/yorunotobari.py --dry-run
+bin/yorunotobari.py --no-commit
+
 bin/ruula.py "検索語"        # ルーラ。素材が新しければ勝手に刻み直す
 bin/ruula.py "検索語" --room kotonoha --project polidog/kyoten --since 2026-09-01
 bin/ruula.py --rebuild      # 刻み直すだけ
 bin/ruula.py --stats        # 索引の中身を数える
+bin/ruula.py --rebuild --quiet  # 刻み直して1行だけ（定時便用）
 ```
 
 `KYOTEN` 環境変数で拠点の場所を変えられる（既定 `~/Documents/Obsidian/kyoten`）。

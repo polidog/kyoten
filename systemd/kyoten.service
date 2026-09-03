@@ -1,0 +1,30 @@
+[Unit]
+Description=よるのとばり — 拠点の定時便（写し・ことのは・そとのこえ・ルーラ・きょうかい）
+Documentation=https://github.com/polidog/kyoten
+# そとのこえは polidog.jp と SNS に取りに行く。ネットワークが立ち上がる
+# 前に走ると、取れないぶんを黙って諦めることになる（壊れはしないが、
+# 毎晩そうなるのは無駄）。
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+
+# user service は最小の PATH で始まる。yorunotobari は python を
+# sys.executable で呼ぶので自分では困らないが、**きょうかいで git を
+# 呼ぶ**ので /usr/bin が要る。shebang の env も同じ。
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+
+ExecStart=%h/ghq/github.com/polidog/kyoten/bin/yorunotobari.py
+
+# 実測 20 秒。SNS の全履歴を辿る日で 2 分。相手が応答を止めたときに
+# 一晩ぶら下がらないよう上限を置く（道具ごとにも 600 秒の上限がある）。
+TimeoutStartSec=1800
+
+# 夜のうちに走るものなので、手元の作業を邪魔しない優先度にしておく。
+Nice=10
+IOSchedulingClass=idle
+
+# しくじった夜は failed のまま残す。`systemctl --user status kyoten` で
+# 見えないと、取れていないことに気づけない。拠点は壊れない（取りに
+# 行けなかったソースはファイルに触れずに諦める）ので、次の便で直る。

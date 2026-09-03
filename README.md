@@ -38,7 +38,7 @@ Claude Code と Codex の会話ログを Markdown に写し、検索できるよ
 
 以降の部屋（てのあと・ふくろ・ステータス）はレベルが上がったら建てる。
 
-道具は `bin/` に4本。共通の小道具は `bin/dougu.py` に置いてある。
+道具は `bin/` に5本。共通の小道具は `bin/dougu.py` に置いてある。
 
 | 道具 | 何をするか |
 |---|---|
@@ -46,6 +46,7 @@ Claude Code と Codex の会話ログを Markdown に写し、検索できるよ
 | `kotonoha.py` | jsonl → ことのは |
 | `sotonokoe.py` | polidog.jp・Bluesky・Misskey → そとのこえ |
 | `ruula.py` | 上の3つと reading-notes を全文検索 |
+| `yorunotobari.py` | 上を順に流して拠点をきょうかいする定時便 |
 
 ## utsushi — ぼうけんのしょの書き写し
 
@@ -249,6 +250,73 @@ bin/ruula.py --stats                        # 索引の中身を数える
 - 見出し単位で切り、パス・日付・プロジェクト・行番号を持つ
 - 増分ではなく作り直し。実測 968ファイル / 24,660かたまりで **3秒**、索引 87MB
 
+## yorunotobari — よるのとばり（定時便）
+
+盗賊が夜のうちに拾って回る。utsushi・kotonoha・sotonokoe を順に流し、
+ルーラを刻み直して、拠点をきょうかい（git commit）する。
+
+```bash
+bin/yorunotobari.py              # 全部流す
+bin/yorunotobari.py --dry-run    # 書かずに、きょうかいもせずに流す
+bin/yorunotobari.py --no-commit  # 集めるけどきょうかいはしない
+```
+
+**1つが失敗しても次へ進む。** そとのこえが取りに行けない夜でも、手元の
+ログからの写しは進められる。全部やってから、失敗があれば非ゼロで終わる。
+
+**変化が無ければコミットしない。** 何も起きなかった日に空のきょうかいを
+積まない。
+
+### systemd に載せる
+
+```bash
+ln -sf ~/ghq/github.com/polidog/kyoten/systemd/kyoten.service ~/.config/systemd/user/
+ln -sf ~/ghq/github.com/polidog/kyoten/systemd/kyoten.timer   ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now kyoten.timer
+```
+
+symlink なので、`systemd/` を直せば `daemon-reload` だけで反映される。
+リポジトリを別の場所に置いているなら `ExecStart=` のパスを直す。
+
+```bash
+systemctl --user list-timers kyoten.timer   # 次にいつ起きるか
+systemctl --user start kyoten.service       # いま1回流す
+systemctl --user status kyoten.service      # しくじっていないか
+journalctl --user -u kyoten.service -o cat  # 何を言ったか
+```
+
+毎晩 03:00。`Persistent=true` にしてあるので、その時刻にラップトップが
+閉じていても次に起きたときに取り戻す（`Persistent=` は `OnCalendar=` の
+タイマーにしか効かない）。
+
+**しくじった夜は failed のまま残す。** 消えると、取れていないことに
+気づけない。拠点は壊れない（取りに行けなかったソースはファイルに触れずに
+諦める）ので、次の便で直る。
+
+**journald に拠点の中身を出さない。** 道具はどれも `--quiet` の1行だけを
+返す。件数以上のものを出すと、会話の原文がシステムログに漏れる。
+
+### 実装で踏んだ落とし穴
+
+14. **ルーラの報告は stdout ではなく stderr に出る**
+    `ruula.py 語 | grep …` としたときに刻み直しの行が混ざらないよう、
+    検索結果だけを stdout に流している。定時便が「何も言わずに終わった」と
+    言い出したらこれ。名前で分岐せず、stdout が空なら stderr、の順で拾う。
+
+15. **user service の PATH は最小**
+    `yorunotobari` は python を `sys.executable` で呼ぶので自分では困らないが、
+    **きょうかいで `git` を呼ぶ**ので `/usr/bin` が要る。`Environment=PATH=` で
+    明示する。
+
+16. **`git status --porcelain` は未追跡ディレクトリを1行にまとめる**
+    そのまま数えると「そとのこえ 1」という嘘のきょうかいになる。
+    `--untracked-files=all` でファイル単位まで開かせる。
+
+17. **`.obsidian/workspace.json` は Obsidian を開くたびに変わる**
+    追跡すると、定時便が毎晩それだけをコミットする。拠点の `.gitignore` で
+    外した（設定の3ファイルは残す —— 拠点を別の場所へ移したときに要る）。
+
 ## ログを消させない
 
 Claude Code は `cleanupPeriodDays` 未設定だと **30日でログを消す**。
@@ -263,6 +331,6 @@ Claude Code は `cleanupPeriodDays` 未設定だと **30日でログを消す**�
 
 ## これから
 
-- **LV4** 盗賊（systemd timer で夜まわり、てのあととふくろを育てる）
+- **LV4（残り）** てのあととふくろ — 作ったもの・詰まったことと、長期記憶
 - **LV5** ステータス画面ととくぎ
 - **LV6** うらないババ（週次のおつげ）と Discord への配達
