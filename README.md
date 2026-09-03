@@ -260,10 +260,17 @@ bin/teato.ts --since 2026-08-01
 bin/teato.ts --quiet
 ```
 
-素材は2つ。**git** —— `~/ghq` 配下 62 リポジトリから自分のコミット
-（8,320件 / 856日 / 2018-11-16 〜）。何を作ったかはコミットが一番正確で、
+素材は2つ。**git** —— `~/ghq` 配下 61 リポジトリから自分のコミット
+（7,800件 / 856日 / 2018-11-16 〜）。何を作ったかはコミットが一番正確で、
 しかも全部自分が書いた文章なので嘘がない。**会話ログ** —— 失敗した道具
-呼び出し。コミットに残らない試行錯誤のうち、機械が確実に拾えるのはここだけ。
+呼び出し（Claude Code と Codex の両方）。コミットに残らない試行錯誤のうち、
+機械が確実に拾えるのはここだけ。
+
+落ちた合図の取り方は2つで違う。Claude Code は `is_error` という真偽値だけ、
+Codex は `status: "failed"` と `exit_code` を明示する（後者のほうが確実）。
+本文は Claude Code が tool_result のテキスト、Codex は stderr —— 空のことが
+多いので `aggregated_output` に落ちる。頭に `Exit code N` を付けて形を揃える。
+実測 119 件のうち Claude Code が 92、Codex が 27。
 
 出力は `teato/<YYYY-MM>/<YYYY-MM-DD>.md`。プロジェクトごとに
 「つくった / さわった / つまずいた」に分ける。
@@ -295,7 +302,12 @@ bin/teato.ts --quiet
 を含むものだけ残す。
 
 実測で 3日ぶん 117件 → 41件。残ったのは WebFetch のタイムアウト、SQLite の
-UNIQUE 制約違反、Python の SyntaxError といった、読み返す価値のあるものだけ。
+UNIQUE 制約違反、Python の SyntaxError、`fatal: not a git repository`、
+`ERROR 2002 … Can't connect to server` といった、読み返す価値のあるものだけ。
+
+**この絞り込みは Codex にも同じものを通す。** `exit_code` が非ゼロでも中身が
+普通の出力、という現象は Codex でも同じように起きる（`a | b` の後半だけ
+こけた回など）。落ちた合図の確かさと、詰まったかどうかは別の話。
 
 ## fukuro — ふくろ（長期記憶）
 

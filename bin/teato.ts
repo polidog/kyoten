@@ -36,6 +36,7 @@ import { basename, dirname, join } from "node:path";
 
 import {
   CLAUDE_PROJECTS,
+  CODEX_SESSIONS,
   KYOTEN,
   clip,
   frontmatter,
@@ -165,6 +166,9 @@ function gitLog(repo: string, since: string | null): string {
       timeout: 120_000,
       maxBuffer: 256 * 1024 * 1024,
       env: { ...process.env, TZ: "Asia/Tokyo", GIT_PAGER: "cat" },
+      // コミットが1つも無いリポジトリで git が "does not have any commits yet"
+      // を吐く。拾って捨てないと、定時便のたびに journald へ流れる。
+      stdio: ["ignore", "pipe", "pipe"],
     });
   } catch {
     return "";
@@ -307,6 +311,76 @@ function* troublesFrom(path: string): Generator<Trouble> {
 }
 
 /**
+ * Codex のしくじりを拾う。
+ *
+ * Claude Code は「道具が失敗した」という一点しか教えてくれないが、Codex は
+ * `status: "failed"` と `exit_code` を明示するので、落ちた合図はこちらのほうが
+ * 確実。ただし **`exit_code` が非ゼロでも中身は普通の出力**ということは同じ
+ * ように起きる（`a | b` の後半だけこけた回など）ので、絞り込みは Claude Code と
+ * 同じ `looksStuck()` を通す。
+ *
+ * 見る本文は stderr が先。空なら aggregated_output に落ちる（実測では
+ * stderr が空で出力だけあるものが多い）。`Exit code N` を頭に付けるのは、
+ * Claude Code 側の tool_result がその形で来るのに揃えるため。
+ */
+function* troublesFromCodex(path: string): Generator<Trouble> {
+  let cwd = "";
+  let session = "";
+
+  for (const row of readJsonl(path)) {
+    const payload = (row.payload as Record<string, unknown> | undefined) ?? {};
+
+    if (row.type === "session_meta") {
+      cwd = String(payload.cwd ?? "") || cwd;
+      session = String(payload.session_id ?? payload.id ?? "") || session;
+      continue;
+    }
+    if (row.type !== "event_msg") continue;
+    if (!payload.item || typeof payload.item !== "object") continue;
+    const item = payload.item as Record<string, unknown>;
+
+    let tool = "";
+    let target = "";
+    let body = "";
+
+    if (item.type === "CommandExecution") {
+      const code = item.exit_code;
+      if (item.status !== "failed" && (code === 0 || code == null)) continue;
+      tool = "CommandExecution";
+      const raw = item.command;
+      target = (typeof raw === "string" ? raw : raw == null ? "" : JSON.stringify(raw)).trim();
+      const out = String(item.stderr ?? "").trim() || String(item.aggregated_output ?? "").trim();
+      body = `Exit code ${code ?? "?"}` + (out ? `\n${out}` : "");
+    } else if (item.type === "McpToolCall") {
+      if (item.status !== "failed") continue;
+      tool = `${String(item.server ?? "?")}.${String(item.tool ?? "?")}`;
+      target = "";
+      const err = item.error;
+      body = (typeof err === "string" ? err : err == null ? "" : JSON.stringify(err)).trim();
+      if (!body) body = "（失敗したが中身が無い）";
+    } else {
+      continue;
+    }
+
+    if (NOT_STUCK.some((prefix) => body.startsWith(prefix)) || !looksStuck(body)) continue;
+
+    const dt = jst(row.timestamp as string | undefined);
+    if (!dt) continue;
+
+    yield {
+      dt,
+      project: slugFromCwd(cwd),
+      tool,
+      target,
+      body,
+      // Codex の item id はセッションの中で一意。--resume で同じログが
+      // 分かれても二重に数えないよう、セッションと組にする。
+      key: `codex:${session}:${String(item.id ?? `${dt.toISOString()}:${target}`)}`,
+    };
+  }
+}
+
+/**
  * サブディレクトリで作業していた回を、リポジトリ 1 つに丸める。
  *
  * `slugFromCwd()` は cwd をそのまま名前にするので、モノレポの中で
@@ -424,11 +498,19 @@ function main(): number {
   const seen = new Set<string>();
   let failed = 0;
 
+  const logs: [string, (p: string) => Generator<Trouble>][] = [];
   if (existsSync(CLAUDE_PROJECTS)) {
-    for (const path of listFiles(CLAUDE_PROJECTS, ".jsonl")) {
+    for (const p of listFiles(CLAUDE_PROJECTS, ".jsonl")) logs.push([p, troublesFrom]);
+  }
+  if (existsSync(CODEX_SESSIONS)) {
+    for (const p of listFiles(CODEX_SESSIONS, ".jsonl")) logs.push([p, troublesFromCodex]);
+  }
+
+  {
+    for (const [path, pull] of logs) {
       let items: Trouble[];
       try {
-        items = [...troublesFrom(path)];
+        items = [...pull(path)];
       } catch (err) {
         // 1ファイルの失敗で全体を止めない
         failed += 1;
