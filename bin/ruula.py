@@ -52,6 +52,7 @@ def rooms() -> list[tuple[Path, str]]:
     return [
         (KYOTEN / "bouken", "bouken"),
         (KYOTEN / "kotonoha", "kotonoha"),
+        (KYOTEN / "soto", "soto"),
         (READING_NOTES, "reading-notes"),
     ]
 
@@ -275,7 +276,7 @@ def main() -> int:
     ap.add_argument("--rebuild", action="store_true", help="索引を刻み直す")
     ap.add_argument("--no-rebuild", action="store_true", help="古くても刻み直さない")
     ap.add_argument("--stats", action="store_true", help="索引の中身を数える")
-    ap.add_argument("--room", choices=["bouken", "kotonoha", "reading-notes"],
+    ap.add_argument("--room", choices=["bouken", "kotonoha", "soto", "reading-notes"],
                     help="部屋で絞る")
     ap.add_argument("--project", help="プロジェクト名で絞る（部分一致）")
     ap.add_argument("--since", metavar="YYYY-MM-DD")

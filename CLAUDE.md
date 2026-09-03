@@ -20,10 +20,18 @@ Slack スレッド全文、認証まわりの試行錯誤——全部入って�
 
 ## いまどこまで来たか
 
-- **LV1 完了**（2026-09-03）— ぼうけんのしょ 293さつ / 20MB を保全。
+- **LV1 完了**（2026-09-03）— ぼうけんのしょ 296さつ / 20MB を保全。
   `~/.claude/settings.json` に `cleanupPeriodDays: 3650` を設定済み
   （未設定だと30日でログが消える）。
-- **LV2 が次** — ことのは（自分の発言の抜き出し）とルーラ（全文検索）。
+- **LV2 完了**（2026-09-03）— ことのは 550発言 / 7日ぶん、
+  ルーラ 968ファイル / 24,660かたまり（索引 87MB・刻み直し3秒）。
+  共通の小道具は `bin/dougu.py` に切り出し済み。
+- **LV3 ほぼ完了**（2026-09-03）— そとのこえ。Bluesky 372日ぶん・
+  Misskey 743日ぶん（どちらも 2023年3月から全履歴）を保全。ルーラは
+  28,641かたまり（うち soto 3,946）。
+  **残りは polidog.jp の記事**で、これは [polidog/web#5](https://github.com/polidog/web/pull/5)
+  のマージ・デプロイと Cloudflare の Cache Rule 追加を待っている（下記）。
+- **LV4 が次** — 盗賊（systemd user timer の定時便）。
 
 ## 語彙
 
@@ -65,46 +73,80 @@ Slack スレッド全文、認証まわりの試行錯誤——全部入って�
    全文検索でも日本語が引けない。`json.loads` → `ensure_ascii=False` で書き直す。
 4. **`jq ... | wc -l` は行数であって件数ではない。** 実測 30,887行 = 888件。
    数を報告する前に、何を数えているか確かめる。
+5. **「ユーザー行」は本人の発話ではない。** 実測1,066行のうち本人の入力は約550。
+   `isMeta` / `isCompactSummary` / `isSidechain` / `origin.kind` / `promptSource`
+   で落ちるものはフラグで落とす。文面判定はフラグの無い古いログ用の最後の砦。
+6. **スラッシュコマンドの `<command-args>` は本人の言葉。** `/omarchy フォントを…`
+   のように引数に本文が入る（実測66件）。コマンド名だけの行は捨て、引数は拾う。
+7. **FTS5 trigram は3文字未満を索引に入れられない。** 日本語は「拠点」「記憶」
+   のような2文字語が多く、`MATCH` では1件も引けない。素の部分一致に落とす
+   （24,660かたまり / 26MB で 40ms）。`snippet()` も 1トークン=3文字で窓が
+   狭すぎるので抜粋は自前で切る。
 
-## 次にやること（LV2）
+7. **polidog.jp は Hugo ではない。** `polidog/website`（Hugo）は旧サイトで、
+   公開中の記事と 1 本も一致しない（実測: サイトの 8月記事 11本 vs ローカル 3本、
+   重なり 0）。現行は `polidog/web` —— Relayer 製の自前 CMS、記事は SQLite。
+8. **Cloudflare は `Accept` をキャッシュキーに入れない。** `Vary: Accept` も
+   見ない。同じ URL で HTML と JSON を出し分けるなら、JSON を `no-store` に
+   したうえで Cloudflare 側に bypass ルールが要る。無いとエッジの HTML が
+   JSON 要求にも HIT する（実測: `cf-cache-status: HIT` で HTML が返った）。
+   ルールは「Eligible for cache」より**下**に置く（最後に一致したものが勝つ）。
+   そして **`cf-cache-status: BYPASS` は効いている証拠にならない** ——
+   アプリが `no-store` を返しただけでも BYPASS と表示される。確かめるには
+   記事 URL を HTML で 2 回叩いて `HIT` にしてから JSON を要求する。
+13. **索引に載っているのに取れない記事があった。** 記事 URL には
+    `/YYYY/MM/DD/slug`（1,294本）と `/blog/YYYY/MM/slug`（12本）が同居していて、
+    `/2006/10/16` のようなものまである。web 側が URL の形で判定していたので
+    12本が HTML を返していた（[polidog/web#6](https://github.com/polidog/web/pull/6) で修正）。
+9. **SNS のいいね数・リアクション数を書かない。** 過去の投稿でも増減するので、
+   書くと毎回全ファイルが書き換わって冪等が壊れる。
+10. **Bluesky の `record.text` は URL が省略表示。** 実 URL は `facets` と
+    `embed` にある。本文は原文ママのまま、URL を後ろに添える（実測 100件中 27件）。
+11. **日本語スラッグの URL は `quote` が要る。** 248本ある。そのまま urllib に
+    渡すと `UnicodeEncodeError` で、これは `Unreachable` ではないのでクラッシュする。
+12. **「取れなかった」と「0件だった」を混同しない。** 落ちている日に空ファイルを
+    書くと過去が消える。取りに行けなかったソースはファイルに触れずに諦める。
+    ただし記事は 1本ずつ独立なので、1本落ちても残りは書く。
 
-### ことのは — 自分の発言だけを抜き出す
+## 次にやること
 
-`bin/kotonoha.py` を作る。
+### まず LV3 の残り — polidog.jp の記事
 
-- 入力: `bouken/` ではなく **jsonl の原本**から直接抜く（写しの整形に依存しない）
-- Claude Code: `type == "user"` かつ `isMeta`/`isSidechain` でない行のテキスト。
-  `tool_result` は除く
-- Codex: `event_msg` の `item.type == "UserMessage"`（本文は `content`）と
-  `payload.type == "user_message"`（本文は `message`）の2系統
-- 除外すべき混入: `/compact` などのスラッシュコマンド、
-  `This session is being continued from...` の要約、
-  Codex の内部評価プロンプト（`The following is the Codex agent history...` で始まる）、
-  AGENTS.md / CLAUDE.md の注入内容
-- 出力: `kotonoha/<YYYY-MM>/<YYYY-MM-DD>.md`。日付ごとに時系列で束ねる。
-  1発言 = 1見出し（時刻・プロジェクト）+ 本文
-- 掟は utsushi と同じ（決定論・冪等）
+1. [polidog/web#5](https://github.com/polidog/web/pull/5) をマージする
+   （main に push すると GitHub Actions が fly へデプロイする）
+2. **Cloudflare に Cache Rule を 1 本足す**（これが無いと JSON が取れない）
+   - 対象: `(http.request.headers["accept"][0] contains "application/json")`
+   - Cache eligibility: **Bypass cache**
+   - 既存の「Eligible for cache」より**下**に置く。Cache Rules は最初の一致で
+     止まらず、**最後に一致したルールが勝つ**
+     （[Order and priority](https://developers.cloudflare.com/cache/how-to/cache-rules/order/)）
+3. `bin/sotonokoe.py --source blog` を流す（約 1,300 記事）
+4. `bin/ruula.py --rebuild`
 
-### ルーラ — 全文検索
+手元の写しで通したところは確認済み: 960記事の取り込み、2回目 `upd 0`、
+日本語スラッグ 248本、記事の frontmatter に `updated` を持たせた差分取得。
 
-`bin/ruula.py` を作る。
+### LV4 — 盗賊（よるのとばり）
 
-- SQLite **FTS5 の trigram トークナイザ**（日本語がそのまま引ける・動作確認済み）
-- DB: `~/Documents/Obsidian/kyoten/.ruula.db`（拠点の .gitignore に入れる）
-- 刻む対象: `bouken/` `kotonoha/`、および読み専用の水源として
-  `~/Documents/Obsidian/reading-notes/`
-- チャンク: 見出し単位で切る。パス・日付・プロジェクト・行番号をメタデータに持つ
-- CLI: `ruula.py "検索語"` で結果を出す。`--project` `--since` で絞れると良い
-- 再構築は数秒で終わる想定。増分ではなく作り直しでよい
+systemd user timer で utsushi / kotonoha / sotonokoe を定時に流す。
+`--quiet` は3本とも実装済みなので、あとは unit ファイルと失敗時の扱い。
 
 ### 確認すること
 
-作ったら必ず:
+作ったら必ず（2回流して `upd 0` になるか＝冪等）:
 
 ```bash
-bin/utsushi.py --quiet   # 2回流して upd 0 になるか（冪等性）
-bin/kotonoha.py --quiet  # 同上
-bin/ruula.py "検索語"     # 日本語が引けるか
+bin/utsushi.py --quiet
+bin/kotonoha.py --quiet
+bin/sotonokoe.py --quiet
+bin/ruula.py --rebuild && bin/ruula.py "検索語"
+```
+
+ことのはを触ったら、混入が戻っていないかも見る:
+
+```bash
+grep -c '<command-name>\|<local-command\|<task-notification>' \
+  ~/Documents/Obsidian/kyoten/kotonoha/*/*.md   # すべて 0 であること
 ```
 
 ## 使い方
@@ -114,9 +156,21 @@ bin/utsushi.py              # ぼうけんのしょを写す
 bin/utsushi.py --dry-run    # 書かずに結果だけ
 bin/utsushi.py --since 2026-08-01
 bin/utsushi.py --quiet      # 1行だけ（定時便用）
+
+bin/kotonoha.py             # ことのはを抜く（引数は utsushi と同じ）
+
+bin/sotonokoe.py            # そとのこえを集める（引数は utsushi と同じ）
+bin/sotonokoe.py --source bluesky            # ソースを絞る
+bin/sotonokoe.py --site http://127.0.0.1:8000  # 手元の polidog.jp を見る
+
+bin/ruula.py "検索語"        # ルーラ。素材が新しければ勝手に刻み直す
+bin/ruula.py "検索語" --room kotonoha --project polidog/kyoten --since 2026-09-01
+bin/ruula.py --rebuild      # 刻み直すだけ
+bin/ruula.py --stats        # 索引の中身を数える
 ```
 
 `KYOTEN` 環境変数で拠点の場所を変えられる（既定 `~/Documents/Obsidian/kyoten`）。
+reading-notes の場所は `KYOTEN_READING`。
 
 ## 応答
 
