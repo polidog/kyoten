@@ -41,12 +41,12 @@ Claude Code と Codex の会話ログを Markdown に写し、検索できるよ
     status.md                         いまの自分（1枚）
     tokugi/<name>.md                  技ごと
     nenpyo/<YYYY>.md                  年ごと
+  otsuge/            おつげ — 週ごとの観測
+    <ISO年>-W<週>.md
   .ruula.db          ルーラの索引（機械生成・git 管理外）
 ```
 
-おつげ（週報）はレベルが上がったら建てる。
-
-道具は `bin/` に8本。共通の小道具は `bin/dougu.py` に置いてある。
+道具は `bin/` に9本。共通の小道具は `bin/dougu.py` に置いてある。
 
 | 道具 | 何をするか |
 |---|---|
@@ -56,6 +56,7 @@ Claude Code と Codex の会話ログを Markdown に写し、検索できるよ
 | `teato.py` | git と会話ログ → てのあと |
 | `fukuro.py` | 拠点の各部屋 → ふくろ |
 | `status.py` | 拠点の各部屋 → ステータス・とくぎ・年表 |
+| `otsuge.py` | 拠点の各部屋 → 週ごとのおつげ |
 | `ruula.py` | 上を全部と reading-notes を全文検索 |
 | `yorunotobari.py` | 順に流して拠点をきょうかいする定時便 |
 
@@ -63,7 +64,7 @@ Claude Code と Codex の会話ログを Markdown に写し、検索できるよ
 てのあと）は外から集め、**2階（ふくろ・ステータス）は拠点の中しか見ない**
 —— jsonl も git も直接は読まず、他の部屋が書いたものを畳み直す。だから
 走らせる順番は utsushi → kotonoha → sotonokoe → teato → fukuro → status
-で固定になる。
+→ otsuge で固定になる。
 
 ## utsushi — ぼうけんのしょの書き写し
 
@@ -412,6 +413,59 @@ status/nenpyo/<YYYY>.md   年ごと（23枚・2004 〜 2026）
     決めると、その2年が丸ごと落ちる（2004-12-26 が 2006-11-14 になった）。
     期間は記事とてのあとの日付そのものから取る。
 
+## otsuge — おつげ（週ごとの観測）
+
+```bash
+bin/otsuge.py                   # 全部
+bin/otsuge.py --dry-run
+bin/otsuge.py --quiet
+```
+
+うらないババが週に1度、拠点を読んで告げる。数の羅列はステータスと年表に
+あるので、こちらは**その週に何が起きて、先週と何が違ったか**。
+`otsuge/<ISO年>-W<週>.md`（月曜はじまり・776週ぶん・2004-W52 〜）。
+
+```markdown
+# 2026-W36 のおつげ
+
+## 今週
+- コミット 103（先週 127 / -24）　手を動かした日 4
+- 会話 247（先週 73 / +174）　発言 344
+
+## よくいた場所
+- polidog/omasushi 18
+- polidog/kyoten 6（はじめて）
+
+## つまずき
+56 件（先週 34 / +22）
+Bash 28、mcp__claude-in-chrome__computer 13、Edit 7
+
+## 止まっているもの
+- polidog/tehilim 105日（34 コミット積んで）
+- polidog/usePHP 92日（63 コミット積んで）
+```
+
+「はじめて」「N日ぶり」「止まっている」は、プロジェクトごとの最後の日を
+週の並び順に育てながら判定する。
+
+### その週の目でだけ書く
+
+**未来を知らないおつげは、二度と変わらない。**「343日止まっている」を
+今日から数えると、過去のおつげが毎晩書き換わって、読み返したときに
+「あのとき何と言われたか」が残らない。だから週を古い順に見て、その週の
+終わりまでに分かっていたことだけで書く。実測 776週すべてが `same` のまま
+動かない。
+
+いちばん遠くまで見えた例は **2626日ぶり**（7年）に、名前も忘れていた
+リポジトリへ戻った週。
+
+### 配達しない
+
+`otsuge/` に置くだけで、Discord にも通知にも出さない。掟4に並んでいる
+「過去に3回止まった仕組み」（`00_思考`・Discord秘書・agent-tracer）は
+どれも**外に出す口**を持っていた。まず拠点の中で完結させて、読む習慣が
+ついてから考える。
+
 ## ruula — ルーラ（全文検索）
 
 ```bash
@@ -427,7 +481,7 @@ bin/ruula.py --stats                        # 索引の中身を数える
 
 - SQLite **FTS5 の trigram トークナイザ**。日本語を分かち書きせずそのまま引ける
 - 索引は `~/Documents/Obsidian/kyoten/.ruula.db`（git 管理外）
-- 刻む対象は `bouken/` `kotonoha/` `soto/` `teato/` `fukuro/` `status/`、それと読み専用の水源
+- 刻む対象は `bouken/` `kotonoha/` `soto/` `teato/` `fukuro/` `status/` `otsuge/`、それと読み専用の水源
   `~/Documents/Obsidian/reading-notes/`（`KYOTEN_READING` で変えられる）
 - 見出し単位で切り、パス・日付・プロジェクト・行番号を持つ
 - 増分ではなく作り直し。実測 968ファイル / 24,660かたまりで **3秒**、索引 87MB
@@ -435,7 +489,8 @@ bin/ruula.py --stats                        # 索引の中身を数える
 ## yorunotobari — よるのとばり（定時便）
 
 盗賊が夜のうちに拾って回る。utsushi・kotonoha・sotonokoe・teato・fukuro・
-status を順に流し、ルーラを刻み直して、拠点をきょうかい（git commit）する。
+status・otsuge を順に流し、ルーラを刻み直して、拠点をきょうかい
+（git commit）する。
 
 ```bash
 bin/yorunotobari.py              # 全部流す
@@ -514,4 +569,9 @@ Claude Code は `cleanupPeriodDays` 未設定だと **30日でログを消す**�
 ## これから
 
 - **LV5** ステータス画面ととくぎ
-- **LV6** うらないババ（週次のおつげ）と Discord への配達
+まだ建てていないもの:
+
+- **ふくろの人物・概念** — いまはプロジェクト台帳だけ。分かち書きが要る
+- **Codex のつまずき** — てのあとが読むのは Claude Code の `is_error` だけ
+- **配達** — おつげは拠点に置くだけにしてある。外に出す仕組みは、過去に
+  3回（`00_思考`・Discord秘書・agent-tracer）止まっているので慎重に

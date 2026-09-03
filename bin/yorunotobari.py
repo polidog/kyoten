@@ -42,6 +42,7 @@ ROOMS = [
     ("teato", "てのあと"),
     ("fukuro", "ふくろ"),
     ("status", "ステータス"),
+    ("otsuge", "おつげ"),
 ]
 
 
@@ -157,6 +158,7 @@ def main() -> int:
         ("teato", common),
         ("fukuro", common),
         ("status", common),
+        ("otsuge", common),
     ]
     # ルーラは素材が新しければ検索時に自分で刻み直すが、そのぶん最初の
     # 1回を人が待つことになる。夜のうちに刻んでおく。--dry-run のときは
