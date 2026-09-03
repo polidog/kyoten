@@ -32,10 +32,14 @@ Slack スレッド全文、認証まわりの試行錯誤——全部入って�
   polidog.jp 側には JSON の口を足した（[polidog/web#5](https://github.com/polidog/web/pull/5)・
   [#6](https://github.com/polidog/web/pull/6)、マージ済み）。
   Cloudflare の Cache Rule も設定済み。
-- **LV4 の半分**（2026-09-03）— よるのとばり。`bin/yorunotobari.py` を
-  systemd user timer（`kyoten.timer`、毎晩 03:00・`Persistent=true`）に載せた。
-  拠点は全部きょうかい済み（bouken 306 / kotonoha 7 / soto 2,424）。
-- **LV4 の残りが次** — てのあととふくろ。
+- **LV4 完了**（2026-09-03）— 盗賊。
+  - **よるのとばり** `bin/yorunotobari.py` を systemd user timer
+    （`kyoten.timer`、毎晩 03:00・`Persistent=true`）に載せた。
+  - **てのあと** 856日ぶん / 8,320コミット（62リポジトリ・2018-11-16 〜）と、
+    会話ログから拾ったつまずき 90件。
+  - **ふくろ** 66プロジェクトの台帳。
+  - ルーラは 39,624かたまり / 索引 114MB。拠点は全部きょうかい済み。
+- **LV5 が次** — ステータス画面ととくぎ。
 
 ## 語彙
 
@@ -121,15 +125,26 @@ Slack スレッド全文、認証まわりの試行錯誤——全部入って�
     そのまま数えると「そとのこえ 1」という嘘のきょうかいになる。
     `--untracked-files=all` を付ける。
 
+17. **モノレポの奥で作業した日は別プロジェクトに見える。** `slug_from_cwd()` は
+    cwd をそのまま名前にするので `<repo>/apps/web` と `<repo>` に割れる。
+    git 側は常にルートを名乗るので、放っておくと同じ日の別々の見出しになる。
+18. **擬似プロジェクトの名前で全文検索しない。** `Work` や `_home` は名前が
+    ただの単語なので、そとのこえを部分一致で総なめにする（実測: `Work` が
+    "work" を含む記事87本を拾っていた）。探すのは `<user>/<repo>` の形だけ。
+19. **`is_error` は「詰まった」ではない。** `ls … && wc …` の後半だけこけても
+    is_error になる。長さとエラー語で絞る（実測 117件 → 41件）。
+
 ## 次にやること
 
-### てのあととふくろ（LV4 の残り）
+### LV5 — ステータス画面ととくぎ
 
-- **てのあと** `teato/` — 作ったもの・詰まったこと
-- **ふくろ** `fukuro/` — 長期記憶（人物・概念・プロジェクト）
+観測結果の2階部分。素材は1階（ぼうけんのしょ・ことのは・そとのこえ・
+てのあと・ふくろ）に揃っている。何を数えて何を「とくぎ」と呼ぶかは
+まだ決めていない。
 
-どちらも掟4（手で書かせない）に従って、素材はログから機械が起こす。
-何を素材にして、どう畳むかはまだ決めていない。
+ふくろの残り（**人物・概念**）もここに関わる。いまのふくろは
+プロジェクト台帳だけで、`fukuro/project/` の下にいる。人物と概念は
+分かち書きが要るので、依存を増やさずにどこまでやるかを決めてから。
 
 ### よるのとばりを触るとき
 
@@ -150,8 +165,13 @@ unit は `systemd/` にあり、`~/.config/systemd/user/` から symlink して
 bin/utsushi.py --quiet
 bin/kotonoha.py --quiet
 bin/sotonokoe.py --quiet
+bin/teato.py --quiet
+bin/fukuro.py --quiet
 bin/ruula.py --rebuild && bin/ruula.py "検索語"
 ```
+
+まとめて流すなら `bin/yorunotobari.py`。順番に意味がある（ふくろは
+拠点に書かれたものを畳むので必ず最後）。
 
 ことのはを触ったら、混入が戻っていないかも見る:
 
@@ -173,6 +193,9 @@ bin/kotonoha.py             # ことのはを抜く（引数は utsushi と同�
 bin/sotonokoe.py            # そとのこえを集める（引数は utsushi と同じ）
 bin/sotonokoe.py --source bluesky            # ソースを絞る
 bin/sotonokoe.py --site http://127.0.0.1:8000  # 手元の polidog.jp を見る
+
+bin/teato.py                # てのあと（引数は utsushi と同じ）
+bin/fukuro.py               # ふくろ（--dry-run / --quiet）
 
 bin/yorunotobari.py         # 定時便（全部流してきょうかいまで）
 bin/yorunotobari.py --dry-run

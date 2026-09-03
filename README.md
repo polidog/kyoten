@@ -33,20 +33,30 @@ Claude Code と Codex の会話ログを Markdown に写し、検索できるよ
     <YYYY-MM>/<DD>-<slug>.md          polidog.jp の記事 1 本
     <YYYY-MM>/bluesky-<YYYY-MM-DD>.md その日の Bluesky
     <YYYY-MM>/misskey-<YYYY-MM-DD>.md その日の Misskey
+  teato/             てのあと — 作ったもの・詰まったこと
+    <YYYY-MM>/<YYYY-MM-DD>.md
+  fukuro/            ふくろ — 長期記憶
+    project/<name>.md                 プロジェクト1つの台帳
   .ruula.db          ルーラの索引（機械生成・git 管理外）
 ```
 
-以降の部屋（てのあと・ふくろ・ステータス）はレベルが上がったら建てる。
+ステータス・とくぎ・おつげ（観測結果の2階部分）はレベルが上がったら建てる。
 
-道具は `bin/` に5本。共通の小道具は `bin/dougu.py` に置いてある。
+道具は `bin/` に7本。共通の小道具は `bin/dougu.py` に置いてある。
 
 | 道具 | 何をするか |
 |---|---|
 | `utsushi.py` | jsonl → ぼうけんのしょ |
 | `kotonoha.py` | jsonl → ことのは |
 | `sotonokoe.py` | polidog.jp・Bluesky・Misskey → そとのこえ |
-| `ruula.py` | 上の3つと reading-notes を全文検索 |
-| `yorunotobari.py` | 上を順に流して拠点をきょうかいする定時便 |
+| `teato.py` | git と会話ログ → てのあと |
+| `fukuro.py` | 拠点の各部屋 → ふくろ |
+| `ruula.py` | 上を全部と reading-notes を全文検索 |
+| `yorunotobari.py` | 順に流して拠点をきょうかいする定時便 |
+
+素材は下から上へ流れる。**ふくろだけは拠点の中しか見ない** —— jsonl も
+git も直接は読まず、他の部屋が書いたものを畳み直す。だから走らせる順番は
+utsushi → kotonoha → sotonokoe → teato → fukuro で固定になる。
 
 ## utsushi — ぼうけんのしょの書き写し
 
@@ -230,6 +240,107 @@ curl -H 'Accept: application/json' https://polidog.jp/2026/09/01/git-dmb/  # 記
     必ず取りこぼすので、索引と同じ条件で引けるかどうかだけを見る
     （[polidog/web#6](https://github.com/polidog/web/pull/6)）。
 
+## teato — てのあと（作ったもの・詰まったこと）
+
+```bash
+bin/teato.py                    # 全部
+bin/teato.py --dry-run
+bin/teato.py --since 2026-08-01
+bin/teato.py --quiet
+```
+
+素材は2つ。**git** —— `~/ghq` 配下 62 リポジトリから自分のコミット
+（8,320件 / 856日 / 2018-11-16 〜）。何を作ったかはコミットが一番正確で、
+しかも全部自分が書いた文章なので嘘がない。**会話ログ** —— 失敗した道具
+呼び出し。コミットに残らない試行錯誤のうち、機械が確実に拾えるのはここだけ。
+
+出力は `teato/<YYYY-MM>/<YYYY-MM-DD>.md`。プロジェクトごとに
+「つくった / さわった / つまずいた」に分ける。
+
+```markdown
+## polidog/kyoten
+
+### つくった
+- `862359b` そとのこえを集める
+
+### さわった
+- `bin/sotonokoe.py`（新規）
+
+### つまずいた
+- 11:50:56 WebFetch `https://developers.cloudflare.com/cache/how-to/cache-rules/`
+  timeout of 60000ms exceeded
+```
+
+### つまずきをどう選ぶか
+
+`is_error` は落ちた合図でしかない。`ls … && wc -l …` のように繋げた
+コマンドは、前半が正常に出力を返していても最後の1つがこければ is_error に
+なる。全部書き写すと、てのあとが端末のログになって読み返せなくなる。
+
+3つで絞っている。**人が「やめておこう」と言った回は落とす**（方針が
+変わった記録であって、つまずきではない）。**長い応答は落とす**（400字を
+超えるものは、たいてい正常な出力に非ゼロが付いただけ）。**しくじりを
+名乗る言葉**（`error` `failed` `timeout` `Traceback` `<tool_use_error>` …）
+を含むものだけ残す。
+
+実測で 3日ぶん 117件 → 41件。残ったのは WebFetch のタイムアウト、SQLite の
+UNIQUE 制約違反、Python の SyntaxError といった、読み返す価値のあるものだけ。
+
+## fukuro — ふくろ（長期記憶）
+
+```bash
+bin/fukuro.py                   # 全部
+bin/fukuro.py --dry-run
+bin/fukuro.py --quiet
+```
+
+拠点に溜まったものを、**プロジェクトごとに1枚**へ畳み直す。他の部屋は
+時間で並んでいるので、「このプロジェクトで何をしていたか」を見るには
+何十日ぶんも辿ることになる。ふくろはその横串（66プロジェクト）。
+
+```markdown
+# polidog/omasushi
+
+会話 25 / 発言 119 / コミット 43 / つまずき 18
+
+## いつ・どこで
+- はじめて: 2026-08-29
+- だれと  : claude-fable-5 19、claude-opus-5 5
+
+## そとに出したもの
+- 2026-08-29 polidog.jp: Omarchy の環境を「レシピ」として公開する omasushi を作った
+
+## よく出てくる語
+polidog(25)、omasushi(21)、omakase(21)、マージ(14)、リポジトリ(10)…
+```
+
+**ふくろは拠点の中しか見ない。** jsonl も git も直接は読まず、他の部屋が
+書いたものだけを素材にする —— 拠点が正本で、ふくろはその畳み方だ、という
+関係を保つため。だから走らせる順番が決まっている。
+
+「よく出てくる語」は分かち書きなしで拾う（掟6・依存を増やさない）。
+2文字以上のカタカナ、2文字以上の漢字、3文字以上の英数字を語とみなし、
+どのプロジェクトでも上位に来る語は捨てる。素材は**ことのはとコミット件名**
+—— どちらも本人が書いた言葉で、アシスタントの発言は混ぜない。
+
+### 実装で踏んだ落とし穴
+
+18. **モノレポの奥で作業した日は、別のプロジェクトに見える**
+    `slug_from_cwd()` は cwd をそのまま名前にするので、
+    `<repo>/apps/web` と `<repo>` に割れる。git 側は常にリポジトリの
+    ルートを名乗るため、放っておくと「つくった」と「つまずいた」が
+    同じ日の別々の見出しになる。親が実在するなら畳む。
+
+19. **擬似プロジェクトの名前で全文検索してはいけない**
+    `Work`（`~/Work` で作業した回）や `_home` は、名前がただの単語なので
+    そとのこえを部分一致で総なめにする。実測で `Work` が "work" を含む
+    記事 87本を、`_home` が 4本を「関係あるもの」として拾っていた。
+    探すのは `<user>/<repo>` の形をした名前だけにする。
+
+20. **コミット件名は "Merge pull request #12 from …" が上位を独占する**
+    GitHub が書いた定型文なので、どのリポジトリでも同じ語が並んで区別に
+    使えない。ストップワードに入れる。
+
 ## ruula — ルーラ（全文検索）
 
 ```bash
@@ -245,15 +356,15 @@ bin/ruula.py --stats                        # 索引の中身を数える
 
 - SQLite **FTS5 の trigram トークナイザ**。日本語を分かち書きせずそのまま引ける
 - 索引は `~/Documents/Obsidian/kyoten/.ruula.db`（git 管理外）
-- 刻む対象は `bouken/` `kotonoha/` `soto/`、それと読み専用の水源
+- 刻む対象は `bouken/` `kotonoha/` `soto/` `teato/` `fukuro/`、それと読み専用の水源
   `~/Documents/Obsidian/reading-notes/`（`KYOTEN_READING` で変えられる）
 - 見出し単位で切り、パス・日付・プロジェクト・行番号を持つ
 - 増分ではなく作り直し。実測 968ファイル / 24,660かたまりで **3秒**、索引 87MB
 
 ## yorunotobari — よるのとばり（定時便）
 
-盗賊が夜のうちに拾って回る。utsushi・kotonoha・sotonokoe を順に流し、
-ルーラを刻み直して、拠点をきょうかい（git commit）する。
+盗賊が夜のうちに拾って回る。utsushi・kotonoha・sotonokoe・teato・fukuro を
+順に流し、ルーラを刻み直して、拠点をきょうかい（git commit）する。
 
 ```bash
 bin/yorunotobari.py              # 全部流す
@@ -331,6 +442,6 @@ Claude Code は `cleanupPeriodDays` 未設定だと **30日でログを消す**�
 
 ## これから
 
-- **LV4（残り）** てのあととふくろ — 作ったもの・詰まったことと、長期記憶
+- **LV5** ステータス画面ととくぎ
 - **LV5** ステータス画面ととくぎ
 - **LV6** うらないババ（週次のおつげ）と Discord への配達

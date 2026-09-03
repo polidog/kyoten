@@ -39,6 +39,8 @@ ROOMS = [
     ("bouken", "ぼうけんのしょ"),
     ("kotonoha", "ことのは"),
     ("soto", "そとのこえ"),
+    ("teato", "てのあと"),
+    ("fukuro", "ふくろ"),
 ]
 
 
@@ -144,10 +146,14 @@ def main() -> int:
 
     common = ["--quiet"] + (["--dry-run"] if args.dry_run else [])
 
+    # 順番に意味がある。ふくろは拠点に書かれたもの（ぼうけんのしょ・
+    # ことのは・てのあと・そとのこえ）を素材に畳むので、必ず最後。
     steps: list[tuple[str, list[str]]] = [
         ("utsushi", common),
         ("kotonoha", common),
         ("sotonokoe", common),
+        ("teato", common),
+        ("fukuro", common),
     ]
     # ルーラは素材が新しければ検索時に自分で刻み直すが、そのぶん最初の
     # 1回を人が待つことになる。夜のうちに刻んでおく。--dry-run のときは
