@@ -83,6 +83,32 @@ section:first-child{border-top:0}
 .sec-head h2{font-size:25px;letter-spacing:.03em}
 .sec-head p{color:var(--ink-soft);margin:12px 0 0;max-width:64ch}
 
+/* アイボ（ドット絵） */
+/* 幅は 26 の倍数にする。半端だとドットの境目がにじむ */
+.aibo{width:104px;height:auto;flex:none;overflow:visible;image-rendering:pixelated}
+.aibo.small{width:78px}
+.aibo .f2,.aibo .blink{opacity:0}
+@keyframes aibo-a{0%,49.9%{opacity:1}50%,100%{opacity:0}}
+@keyframes aibo-b{0%,49.9%{opacity:0}50%,100%{opacity:1}}
+@keyframes aibo-blink{0%,2.4%{opacity:1}2.5%,100%{opacity:0}}
+.aibo .f1{animation:aibo-a 1.8s steps(1,end) infinite}
+.aibo .f2{animation:aibo-b 1.8s steps(1,end) infinite}
+.aibo .blink{animation:aibo-blink 5.6s steps(1,end) infinite}
+/* 動くのが邪魔な人には、こま1枚で座っていてもらう */
+@media (prefers-reduced-motion: reduce){
+  .aibo .f1,.aibo .f2,.aibo .blink{animation:none}
+  .aibo .f1{opacity:1}
+}
+.aibo-who{margin-top:3px;text-align:center;font-family:"DotGothic16",monospace;font-size:11.5px;color:var(--muted);letter-spacing:.1em}
+.aibo-side{display:flex;gap:20px;align-items:flex-start;margin:0 5px}
+.aibo-side .diary{margin:0;flex:1;min-width:0}
+.aibo-row{display:flex;gap:18px;align-items:flex-start}
+.aibo-row .sec-head{flex:1;min-width:0;margin-bottom:0}
+@media (max-width:620px){
+  .aibo-side{flex-direction:column;gap:12px}
+  .aibo{width:78px}
+}
+
 /* アイボの日記 */
 .diary{background:var(--surface);border:2px solid var(--line);box-shadow:var(--shadow);padding:24px 28px;margin:0 5px}
 .diary p{margin:0 0 1.15em;line-height:2.05}
@@ -392,6 +418,117 @@ function md(text) {
   return out.join("");
 }
 
+// ---------------------------------------------------------------- アイボ
+
+/**
+ * 横で見ていたやつ。26×24 のドット絵で、こま2枚（しっぽと耳が動く）と
+ * まばたきを持つ。
+ *
+ * 絵は文字の表で持って、描くときに `<rect>` へ組む。色は CSS 変数を
+ * そのまま入れてあるので、明るい地でも暗い地でも同じ表で描ける。
+ *   o ふち　w からだ　m はなさき　n はな　e め　h めのひかり　p みみのうち　t くびわ
+ *
+ * 色は明暗で変えない。白い犬は、明るい地でも暗い地でも白い犬でいい。
+ */
+var AIBO_PAINT = {
+  o: "#171B2E", w: "#F2F4FA", m: "#DCE2F0", n: "#171B2E",
+  e: "#3A5BC0", h: "#FFFFFF", p: "#E2A93F", t: "#C8862A",
+};
+
+var AIBO_A = [
+  "....owwo..........owwo....",
+  "...owppwo........owppwo...",
+  "...owppwoooooooooowppwo...",
+  "....oowwwwwwwwwwwwwwoo....",
+  "...owwwwwwwwwwwwwwwwwwo...",
+  "...owwwwwwwwwwwwwwwwwwo...",
+  "...owwheewwwwwwwwheewwo...",
+  "...owweeewwwwwwwweeewwo...",
+  "...owweeewwwwwwwweeewwo...",
+  "...owwwwwwwwwwwwwwwwwwo...",
+  "...owwwwwmmnnnnmmwwwwwo...",
+  "...owwwwwmmnnnnmmwwwwwo...",
+  "...owwwwwmmmoommmwwwwwo...",
+  "....owwwwmmmmmmmmwwwwo....",
+  ".....oowwwwwwwwwwwwoo.....",
+  "......otttttttttttto......",
+  "......owwwwwwwwwwwwo.oo...",
+  "......owwwwwwwwwwwwoowwo..",
+  "......owwwwwwwwwwwwoowwo..",
+  "......owwwwwwwwwwwwowwo...",
+  "......owwwwwwwwwwwwwwo....",
+  "......owwwwwwwwwwwwoo.....",
+  "......owwwowwwwowwwo......",
+  ".......ooo.oooo.ooo.......",
+];
+var AIBO_B = [
+  ".....oo............oo.....",
+  "....owwo..........owwo....",
+  "...owppwoooooooooowppwo...",
+  "....oowwwwwwwwwwwwwwoo....",
+  "...owwwwwwwwwwwwwwwwwwo...",
+  "...owwwwwwwwwwwwwwwwwwo...",
+  "...owwheewwwwwwwwheewwo...",
+  "...owweeewwwwwwwweeewwo...",
+  "...owweeewwwwwwwweeewwo...",
+  "...owwwwwwwwwwwwwwwwwwo...",
+  "...owwwwwmmnnnnmmwwwwwo...",
+  "...owwwwwmmnnnnmmwwwwwo...",
+  "...owwwwwmmmoommmwwwwwo...",
+  "....owwwwmmmmmmmmwwwwo....",
+  ".....oowwwwwwwwwwwwoo.....",
+  "......otttttttttttto......",
+  "......owwwwwwwwwwwwo......",
+  "......owwwwwwwwwwwwo......",
+  "......owwwwwwwwwwwwo.oo...",
+  "......owwwwwwwwwwwwoowwo..",
+  "......owwwwwwwwwwwwoowwo..",
+  "......owwwwwwwwwwwwowwo...",
+  "......owwwowwwwowwwwwo....",
+  ".......ooo.oooo.ooooo.....",
+];
+
+/** まばたき。目のところを塗りつぶして、まんなかに線を1本引く */
+var AIBO_EYES = [[6, 8], [17, 19]];
+
+/** 同じ色が横に続くところは1本の帯にする（1こま 410 点 → 127 本） */
+function dots(rows) {
+  var out = [];
+  for (var y = 0; y < rows.length; y++) {
+    var line = rows[y];
+    var x = 0;
+    while (x < line.length) {
+      var c = line[x];
+      if (c === ".") { x++; continue; }
+      var run = 1;
+      while (x + run < line.length && line[x + run] === c) run++;
+      out.push('<rect x="' + x + '" y="' + y + '" width="' + run + '" height="1" fill="' +
+        AIBO_PAINT[c] + '"/>');
+      x += run;
+    }
+  }
+  return out.join("");
+}
+
+function aibo(small) {
+  var shut = AIBO_EYES.map(function (e) {
+    var w = e[1] - e[0] + 1;
+    return '<rect x="' + e[0] + '" y="6" width="' + w + '" height="3" fill="' + AIBO_PAINT.w + '"/>' +
+      '<rect x="' + e[0] + '" y="7" width="' + w + '" height="1" fill="' + AIBO_PAINT.o + '"/>';
+  }).join("");
+  return '<svg class="aibo' + (small ? " small" : "") + '" viewBox="0 0 26 24" role="img" ' +
+    'shape-rendering="crispEdges"><title>アイボ</title>' +
+    '<g class="f1">' + dots(AIBO_A) + "</g>" +
+    '<g class="f2">' + dots(AIBO_B) + "</g>" +
+    '<g class="blink">' + shut + "</g></svg>";
+}
+
+/** 日記のとなりに座らせる */
+function aiboBeside(html) {
+  return '<div class="aibo-side"><div>' + aibo(false) +
+    '<div class="aibo-who">アイボ</div></div>' + html + "</div>";
+}
+
 // ---------------------------------------------------------------- 部品
 
 function bars(items, gold) {
@@ -471,7 +608,7 @@ function renderSummary(s) {
       "その日の記録を読んで、横で見ていた側が書いたもの。ここだけ書き手が機械ではないので、" +
       "同じ日を二度書くと違うものになる。だから一度書いたら書き直さない。" +
       "ぜんぶで <b>" + num(s.diaries) + "</b> 日ぶん。"));
-    out.push('<div class="diary">' + paragraphs(s.diary.body) + "</div>");
+    out.push(aiboBeside('<div class="diary">' + paragraphs(s.diary.body) + "</div>"));
     out.push('<p class="more">▶ <a href="#/list/diary">日記をぜんぶ読む</a></p>');
     out.push("</section>");
   }
@@ -604,8 +741,9 @@ var LISTS = {
 
 function renderList(kind, items) {
   var meta = LISTS[kind];
+  var head = secHead(meta.kicker + "　" + num(items.length), meta.title, esc(meta.note));
   var out = ['<section>'];
-  out.push(secHead(meta.kicker + "　" + num(items.length), meta.title, esc(meta.note)));
+  out.push(kind === "diary" ? '<div class="aibo-row">' + aibo(true) + head + "</div>" : head);
 
   if (kind === "diary") {
     out.push('<div class="rows">');
@@ -693,14 +831,16 @@ function renderDoc(doc) {
   var fields = Object.keys(doc.fields || {});
   var out = ["<section>"];
   out.push(crumbs(doc.path, false));
-  out.push('<div class="sec-head"><p class="kicker">▶ ' + esc((doc.fields && doc.fields.room) || "拠点") + "</p>" +
-    "<h2>" + esc(doc.title || doc.path) + "</h2>");
-  if (fields.length) {
-    out.push('<div class="fm">' + fields.map(function (k) {
-      return "<span>" + esc(k) + " " + esc(doc.fields[k]) + "</span>";
-    }).join("") + "</div>");
-  }
-  out.push("</div>");
+  var room = (doc.fields && doc.fields.room) || "拠点";
+  var head = '<div class="sec-head"><p class="kicker">▶ ' + esc(room) + "</p>" +
+    "<h2>" + esc(doc.title || doc.path) + "</h2>" +
+    (fields.length
+      ? '<div class="fm">' + fields.map(function (k) {
+        return "<span>" + esc(k) + " " + esc(doc.fields[k]) + "</span>";
+      }).join("") + "</div>"
+      : "") + "</div>";
+  // 日記だけは書いたやつが横にいる
+  out.push(room === "日記" ? '<div class="aibo-row">' + aibo(true) + head + "</div>" : head);
   out.push('<div class="tools" style="margin:0 0 16px">' +
     '<button class="btn on" id="as-md">よみもの</button>' +
     '<button class="btn" id="as-raw">原文</button></div>');

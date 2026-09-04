@@ -53,6 +53,7 @@
  *     diary.ts --dry-run       # 渡すものを見るだけ（API を叩かない）
  *     diary.ts --since 2026-09-01
  *     diary.ts --quiet         # 1行だけ（定時便用）
+ *     diary.ts --try 2026-09-02   # 拠点に書かずに1枚だけ書かせる（声を見る）
  */
 
 import { spawnSync } from "node:child_process";
@@ -104,6 +105,8 @@ const WRITING = `その日の日記を書く。素材にあるのは全部あな
 - 最後に、言いたいことを一つだけ書く。褒めても、引っかかったところを
   指摘してもいい。素材から言えることに限る。
 - 素材を書き写さない。数を使うときは素材のものをそのまま使う。
+- **きのうの日記は話のつながりのために渡している。口調はまねしなくていい**
+  —— 声は「喋りかた」に従う。
 
 日記の本文だけを出力する。前置きも見出しも要らない。`;
 
@@ -153,6 +156,18 @@ function previousDiary(date: string): string {
   return `（${last}）\n${body.trim()}`;
 }
 
+/**
+ * 立ち位置から「喋りかた」の節だけ抜く。
+ *
+ * 素材は 3万字まで渡すので、声のことを先頭で1回言っただけだと薄まる
+ * （実測: 口調を足した直後に書かせたら、きのうの日記の声のまま出た）。
+ * 同じ文を二度持たずに、最後にもう一度置くために stance から切り出す。
+ */
+function voiceOf(stance: string): string {
+  const at = stance.indexOf("## 喋りかた");
+  return at < 0 ? "" : stance.slice(at).trim();
+}
+
 function buildPrompt(date: string, stance: string): string {
   const parts: string[] = [stance, WRITING, `## 素材（${date}）`];
   const add = (head: string, body: string) => {
@@ -164,6 +179,10 @@ function buildPrompt(date: string, stance: string): string {
   add("作業 —— その日のコミットと、詰まったこと", dayFile("作業", date));
   add("投稿 —— その日に外へ出したもの", postsOf(date));
   add("きのうの日記", previousDiary(date));
+
+  // 声は最後にもう一度。素材のあとに置かないと、きのうの日記に引っぱられる
+  const voice = voiceOf(stance);
+  if (voice) parts.push(`## もう一度 —— この声で書く\n\n${voice}`);
 
   return parts.join("\n\n");
 }
@@ -221,7 +240,7 @@ function render(date: string, body: string): string {
 // ---------------------------------------------------------------- 入口
 
 function main(): number {
-  const args = parseArgs(process.argv.slice(2), ["dry-run", "quiet"], ["since"]);
+  const args = parseArgs(process.argv.slice(2), ["dry-run", "quiet"], ["since", "try"]);
   const since = parseSince(args.values.since);
   if (since === undefined) return 2;
 
@@ -233,6 +252,23 @@ function main(): number {
   if (!stance) {
     console.error(`立ち位置が読めません: ${STANCE}`);
     return 1;
+  }
+
+  // 声を変えたときのため。**拠点には書かず**、その日を1枚だけ書かせて出す。
+  // 日記は追記のみなので、書いてある日の声は試し書きでしか見られない。
+  const trial = args.values.try;
+  if (trial) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(trial)) {
+      console.error(`日付は YYYY-MM-DD で: ${trial}`);
+      return 2;
+    }
+    try {
+      console.log(ask(buildPrompt(trial, stance)));
+      return 0;
+    } catch (err) {
+      console.error(`書けませんでした: ${(err as Error).message}`);
+      return 1;
+    }
   }
 
   const today = ymd(jst(new Date().toISOString())!);
