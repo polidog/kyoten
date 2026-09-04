@@ -69,6 +69,11 @@ section{padding:52px 0;border-top:2px solid var(--line)}
 .sec-head h2{font-size:25px;letter-spacing:.03em}
 .sec-head p{color:var(--ink-soft);margin:12px 0 0;max-width:64ch}
 
+/* アイボの日記 */
+.diary{background:var(--surface);border:2px solid var(--line);box-shadow:var(--shadow);padding:24px 28px;margin:0 5px}
+.diary p{margin:0 0 1.15em;line-height:2.05}
+.diary p:last-child{margin-bottom:0}
+
 /* こんしゅうの 週報 */
 .report{border:3px solid var(--ok);background:var(--surface);padding:22px 26px;margin:0 5px}
 .report .o-title{font-family:"DotGothic16",monospace;font-size:17px;color:var(--ok);letter-spacing:.03em}
@@ -151,6 +156,15 @@ function inline(text) {
   return html;
 }
 
+/** 見出しの無い文書（日記）。空行で段落に割る */
+function paragraphs(text) {
+  return String(text || "").split(/\n\s*\n/)
+    .map(function (p) { return p.trim(); })
+    .filter(Boolean)
+    .map(function (p) { return "<p>" + inline(p) + "</p>"; })
+    .join("");
+}
+
 /** 週報の節。箇条書きと段落だけ描く */
 function lines(rows) {
   var out = [];
@@ -204,6 +218,17 @@ function render(s) {
   out.push("<div><span>週報</span><b>" + num(s.weeks) + "週</b></div>");
   out.push("<div><span>ぜんぶで</span><b>" + s.span + "年</b></div>");
   out.push("</div></div></header>");
+
+  // ---- アイボの日記
+  if (s.diary) {
+    out.push("<section>");
+    out.push(secHead("アイボの日記", esc(s.diaryDate) + " のこと",
+      "その日の記録を読んで、横で見ていた側が書いたもの。ここだけ書き手が機械ではないので、" +
+      "同じ日を二度書くと違うものになる。だから一度書いたら書き直さない。" +
+      "ぜんぶで <b>" + num(s.diaries) + "</b> 日ぶん。"));
+    out.push('<div class="diary">' + paragraphs(s.diary.body) + "</div>");
+    out.push("</section>");
+  }
 
   // ---- こんしゅうの 週報
   if (s.weekly) {

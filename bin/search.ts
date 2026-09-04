@@ -8,6 +8,7 @@
  *     会話/        会話の原文
  *     自分/        polidog の発言だけ
  *     アイボ/      AI が何をしたか
+ *     日記/        アイボが書いた1日のまとめ
  *     投稿/ 作業/ 事典/ プロフィール/ 週報/
  *     ~/Documents/Obsidian/reading-notes/   読み専用の水源
  *
@@ -54,14 +55,15 @@ const RE_MINE_HEAD = /^\d\d:\d\d:\d\d +(.+?)（/;
 const AIBO_SECTIONS = new Set(["どれだけ動いたか", "つかった道具", "やったこと",
   "言われたこと"]);
 
-export const ROOMS = ["会話", "自分", "アイボ", "投稿", "作業", "事典", "プロフィール",
-  "週報", "読書メモ"] as const;
+export const ROOMS = ["会話", "自分", "アイボ", "日記", "投稿", "作業", "事典",
+  "プロフィール", "週報", "読書メモ"] as const;
 
 function rooms(): [string, string][] {
   return [
     [join(KYOTEN, "会話"), "会話"],
     [join(KYOTEN, "自分"), "自分"],
     [join(KYOTEN, "アイボ"), "アイボ"],
+    [join(KYOTEN, "日記"), "日記"],
     [join(KYOTEN, "投稿"), "投稿"],
     [join(KYOTEN, "作業"), "作業"],
     [join(KYOTEN, "事典"), "事典"],

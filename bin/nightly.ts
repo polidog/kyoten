@@ -3,7 +3,8 @@
  * nightly — 定時便
  *
  * 夜のうちに拾って回る。sessions・me・aibo・posts・work・entities・profile・
- * weekly・trend を順に流し、索引を刻み直して、拠点を git commit する。
+ * weekly・trend・diary を順に流し、索引を刻み直して、拠点を git commit する。
+ * diary だけは中で `claude` を呼ぶ（きのうの日記を1枚書く）。
  * systemd user timer から呼ばれる。
  *
  * 原則:
@@ -37,8 +38,8 @@ const BIN = dirname(fileURLToPath(import.meta.url));
 const STEP_TIMEOUT = 600_000;
 
 /** 拠点の部屋。コミットのメッセージに数を出すのに使う。 */
-const ROOMS: readonly string[] = ["会話", "自分", "アイボ", "投稿", "作業", "事典",
-  "プロフィール", "週報"];
+const ROOMS: readonly string[] = ["会話", "自分", "アイボ", "日記", "投稿", "作業",
+  "事典", "プロフィール", "週報"];
 
 /**
  * 道具を1本流す。戻り値は [成功したか, 1行の報告]。
@@ -186,6 +187,9 @@ function main(): number {
     ["profile", common],
     ["weekly", common],
     ["trend", common],
+    // 日記は素材が全部そろってから。中で `claude` を呼ぶので、ここだけ
+    // 外に出ていく（相手は API で、拠点の外へ書きはしない）。
+    ["diary", common],
   ];
   // 索引は素材が新しければ検索時に自分で刻み直すが、そのぶん最初の
   // 1回を人が待つことになる。夜のうちに刻んでおく。--dry-run のときは

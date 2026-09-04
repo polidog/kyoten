@@ -33,6 +33,13 @@ export interface Doc {
   readonly title: string;
   /** `#` の直後の1行（`2004-12-26 から … まで。23 年。`） */
   readonly lead: string;
+  /**
+   * 見出し（`#`）を除いた本文まるごと。
+   *
+   * 日記のように**見出しを持たない部屋**があるので要る。`sections` だけ
+   * 見ていると、段落しかない文書は `lead` の1行しか取れず、残りが消える。
+   */
+  readonly body: string;
   readonly sections: readonly Section[];
 }
 
@@ -48,6 +55,7 @@ export function readDoc(abs: string): Doc {
 
   let title = "";
   let lead = "";
+  const kept: string[] = [];
   const sections: { head: string; lines: string[] }[] = [];
   let cur: { head: string; lines: string[] } | null = null;
 
@@ -59,6 +67,7 @@ export function readDoc(abs: string): Doc {
       cur = null;
       continue;
     }
+    kept.push(line);
     if (got) {
       cur = { head: got[2].trim(), lines: [] };
       sections.push(cur);
@@ -69,7 +78,14 @@ export function readDoc(abs: string): Doc {
   }
 
   for (const s of sections) trimEnds(s.lines);
-  return { path: relative(KYOTEN, abs), fields, title, lead, sections };
+  return {
+    path: relative(KYOTEN, abs),
+    fields,
+    title,
+    lead,
+    body: trimEnds(kept).join("\n"),
+    sections,
+  };
 }
 
 /** 見出しの前方一致で節を引く。`いま手が動いているもの（… 以降）` のため。 */
@@ -376,6 +392,35 @@ export function trend(week: string): Doc | null {
   return existsSync(abs) ? readDoc(abs) : null;
 }
 
+// ---------------------------------------------------------------- 日記
+
+export interface DiaryHead {
+  readonly date: string;
+  /** 誰が書いたか。この部屋だけ書き手が LLM なので、機種を残してある */
+  readonly by: string;
+  readonly lead: string;
+  readonly path: string;
+}
+
+export function diaryList(): readonly DiaryHead[] {
+  const paths = listFiles(room("日記"), ".md");
+  return cached("diary", paths, () =>
+    paths.map((abs) => {
+      const doc = readDoc(abs);
+      return {
+        date: doc.fields.date || doc.title.replace(/ の日記$/, ""),
+        by: doc.fields.by ?? "",
+        lead: doc.lead,
+        path: doc.path,
+      };
+    }).sort((a, b) => a.date.localeCompare(b.date)));
+}
+
+export function diary(date: string): Doc | null {
+  const abs = room("日記", safeName(date).slice(0, 7), `${safeName(date)}.md`);
+  return existsSync(abs) ? readDoc(abs) : null;
+}
+
 // ---------------------------------------------------------------- 事典
 
 export interface EntityHead {
@@ -428,6 +473,9 @@ export interface Summary {
   readonly weeks: number;
   readonly weekly: Doc | null;
   readonly trend: Doc | null;
+  readonly diary: Doc | null;
+  readonly diaryDate: string;
+  readonly diaries: number;
 }
 
 export function summary(): Summary | null {
@@ -457,6 +505,13 @@ export function summary(): Summary | null {
       const tail = t[t.length - 1];
       return tail ? trend(tail.week) : null;
     })(),
+    // 日記はいちばん新しい1枚だけ。潜るのは端末の仕事
+    diary: (() => {
+      const tail = diaryList().at(-1);
+      return tail ? diary(tail.date) : null;
+    })(),
+    diaryDate: diaryList().at(-1)?.date ?? "",
+    diaries: diaryList().length,
   };
 }
 

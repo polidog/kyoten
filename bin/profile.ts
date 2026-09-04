@@ -2,7 +2,7 @@
 /**
  * profile — プロフィール・スキル・年表（観測結果の2階）
  *
- * 1階（会話・自分・アイボ・投稿・作業・事典）に溜まったものを、**人が読む形**
+ * 1階（会話・自分・アイボ・日記・投稿・作業・事典）に溜まったものを、**人が読む形**
  * へ畳む。事典が「プロジェクトごとの横串」なら、こちらは「技ごと」と
  * 「年ごと」と「いま」。
  *
@@ -316,7 +316,7 @@ function scanWork(skills: Skills, years: Years, span: string[]): void {
 /** 各部屋の大きさ。プロフィールの「記録の量」になる。 */
 function scanRooms(): Record<string, number> {
   const counts: Record<string, number> = {};
-  for (const room of ["会話", "自分", "アイボ", "投稿", "作業"]) {
+  for (const room of ["会話", "自分", "アイボ", "日記", "投稿", "作業"]) {
     const root = join(KYOTEN, room);
     counts[room] = existsSync(root) ? listFiles(root, ".md").length : 0;
   }
@@ -448,6 +448,7 @@ function renderProfile(
     `- 会話　　　${n(rooms["会話"] ?? 0)} 本`,
     `- 自分　　　${n(rooms["自分"] ?? 0)} 日ぶん`,
     `- アイボ　　${n(rooms["アイボ"] ?? 0)} 日ぶん`,
+    `- 日記　　　${n(rooms["日記"] ?? 0)} 日ぶん`,
     `- 投稿　　　${n(rooms["投稿"] ?? 0)}`,
     `- 作業　　　${n(rooms["作業"] ?? 0)} 日ぶん`,
     `- 事典　　　${n(rooms["事典"] ?? 0)} プロジェクト`,
