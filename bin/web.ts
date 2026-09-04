@@ -45,6 +45,8 @@ function list(room: string): unknown {
       return vault.timelineList();
     case "diary":
       return vault.diaryList();
+    case "stock":
+      return vault.stockList();
     case "events":
       return vault.eventList();
     case "weekly":
@@ -120,8 +122,21 @@ function api(u: URL): unknown {
       return vault.summary();
     case "/api/list":
       return list(u.searchParams.get("room") ?? "");
-    case "/api/doc":
-      return vault.docAt(u.searchParams.get("path") ?? "") ?? undefined;
+    case "/api/doc": {
+      const path = u.searchParams.get("path") ?? "";
+      const doc = vault.docAt(path);
+      if (!doc) return undefined;
+      // 日記を開いたときは、その日の感想も添える。読む側に2回叩かせない
+      // ——「日記のとなりにアイボが座る」のと同じで、返事は同じ画面に出す
+      const day = /^日記\/\d{4}-\d{2}\/(\d{4}-\d{2}-\d{2})\.md$/.exec(path);
+      const said = day ? vault.commentsOn(day[1]) : [];
+      if (said.length) return { ...doc, comments: said };
+      // 株を開いたときは、その日の見立ても添える。日記と感想と同じ考えかたで、
+      // 値の一部ではなく「それを見てアイボが言ったもの」なので別に持たせる
+      const priced = /^株\/\d{4}-\d{2}\/(\d{4}-\d{2}-\d{2})\.md$/.exec(path);
+      const seen = priced ? vault.outlookOn(priced[1]) : null;
+      return seen ? { ...doc, outlook: seen } : doc;
+    }
     case "/api/raw":
       return vault.raw(u.searchParams.get("path") ?? "") ?? undefined;
     case "/api/tree":

@@ -2,14 +2,22 @@
 /**
  * posts — 外に出した言葉を集める
  *
- * polidog.jp・Bluesky・Misskey から、自分が外に向けて出した言葉を拠点へ写す。
- * `会話/` や `自分/` が「閉じた場所での言葉」なのに対して、
+ * polidog.jp・Bluesky・Misskey・X から、自分が外に向けて出した言葉を拠点へ
+ * 写す。`会話/` や `自分/` が「閉じた場所での言葉」なのに対して、
  * こちらは公開された言葉。
  *
  * 出力:
  *     投稿/<YYYY-MM>/<DD>-<slug>.md           polidog.jp の記事 1 本
  *     投稿/<YYYY-MM>/bluesky-<YYYY-MM-DD>.md  その日の Bluesky
  *     投稿/<YYYY-MM>/misskey-<YYYY-MM-DD>.md  その日の Misskey
+ *     投稿/<YYYY-MM>/x-<YYYY-MM-DD>.md        その日の X（旧 Twitter）
+ *
+ * X だけ取りに行く先が API ではなく**手元のアーカイブ**。2026-02-06 に無料枠が
+ * 廃止され、投稿の読み取りは 1 件 $0.005 の従量課金になった。毎晩叩く道具に
+ * 課金の口を持たせるより、公式のアーカイブ（設定 → データのアーカイブを
+ * ダウンロード）を 1 回展開して読むほうが安全で、しかも全期間が入る。
+ * 代わりにこれから先の投稿は入らない —— いま書いているのは Bluesky と
+ * Misskey なので、X は「過去ログを流し込む」側として扱う。
  *
  * 記事が 1 本 1 ファイルで SNS が日ごとなのは、長さが 2 桁違うため。1 投稿
  * 1 ファイルにすると数千の断片ができて、検索で引いたときに前後が見えない。
@@ -29,11 +37,16 @@
  *     posts.ts --dry-run          # 書かずに結果だけ
  *     posts.ts --since 2026-08-01
  *     posts.ts --quiet            # 1行だけ（定時便用）
- *     posts.ts --source bluesky   # ソースを絞る（blog / bluesky / misskey）
+ *     posts.ts --source bluesky   # ソースを絞る（blog / bluesky / misskey / x）
  *     posts.ts --site http://127.0.0.1:8123   # 手元の polidog.jp を見る
+ *
+ * 環境変数 `KYOTEN_X_ARCHIVE` で X のアーカイブの場所を変えられる
+ * （既定 `~/Documents/twitter-archive`）。展開済みのディレクトリを指す ——
+ * zip のままでは読めない（Node の標準ライブラリに展開する口が無い）。
  */
 
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync, statSync } from "node:fs";
+import { homedir } from "node:os";
 import { join } from "node:path";
 
 import {
@@ -56,6 +69,8 @@ const BLUESKY_API = "https://public.api.bsky.app/xrpc";
 const BLUESKY_ACTOR = "polidog.jp";
 const MISSKEY_API = "https://misskey.io/api";
 const MISSKEY_USER_ID = "9cw03lelar";
+const X_ARCHIVE = process.env.KYOTEN_X_ARCHIVE ??
+  join(homedir(), "Documents/twitter-archive");
 
 /**
  * 1 リクエストで取る件数と、遡る上限。上限は暴走よけで、実際は
@@ -404,6 +419,156 @@ async function misskey(writer: Writer, since: string | null): Promise<number> {
   return bundle(writer, "misskey", posts, since);
 }
 
+// ---------------------------------------------------------------- X
+
+/**
+ * アーカイブの置き場所。見つからなければ null（＝まだ落としていない）。
+ *
+ * 展開すると `<どこか>/data/tweets.js` の形になる。どちらを渡されても
+ * いいように、`data/` を持つディレクトリと `data/` 自身の両方を見る。
+ */
+function xRoot(): string | null {
+  for (const dir of [join(X_ARCHIVE, "data"), X_ARCHIVE]) {
+    try {
+      if (statSync(dir).isDirectory() && xParts(dir).length) return dir;
+    } catch {
+      // 無ければ次を見る
+    }
+  }
+  return null;
+}
+
+/**
+ * `tweets.js` と、分割されたぶん（`tweets-part1.js` …）。
+ *
+ * 数が多いアーカイブは part に割れる。番号順に並べる（文字列順だと
+ * part10 が part2 より前に来る）。
+ */
+function xParts(dir: string): string[] {
+  let names: string[];
+  try {
+    names = readdirSync(dir);
+  } catch {
+    return [];
+  }
+  return names
+    .filter((name) => /^tweets(-part\d+)?\.js$/.test(name))
+    .sort((a, b) => {
+      const num = (name: string) => Number(name.match(/part(\d+)/)?.[1] ?? 0);
+      return num(a) - num(b) || (a < b ? -1 : a > b ? 1 : 0);
+    })
+    .map((name) => join(dir, name));
+}
+
+/**
+ * `tweets.js` は JSON ではなく JS の代入文。
+ *
+ *     window.YTD.tweets.part0 = [ { "tweet": { … } }, … ]
+ *
+ * `=` の後ろの `[` から先は素の JSON なので、頭を落とせば読める。
+ */
+function xRead(path: string): unknown[] {
+  const text = readText(path);
+  const eq = text.indexOf("=");
+  const head = eq < 0 ? -1 : text.indexOf("[", eq);
+  if (head < 0) throw new Unreachable(`${path}: tweets.js の形が違う`);
+  let got: unknown;
+  try {
+    got = JSON.parse(text.slice(head));
+  } catch (err) {
+    throw new Unreachable(`${path}: JSON として読めない (${(err as Error).message})`);
+  }
+  if (!Array.isArray(got)) throw new Unreachable(`${path}: 配列ではない`);
+  return got;
+}
+
+interface Tweet {
+  readonly id_str?: string;
+  readonly created_at?: string;
+  readonly full_text?: string;
+  readonly in_reply_to_screen_name?: string;
+  readonly entities?: { readonly urls?: readonly Record<string, unknown>[] };
+}
+
+/**
+ * 本文で t.co に短縮されている URL を entities から集める。
+ *
+ * Bluesky の facets とまったく同じ形の落とし穴 —— 本文に入っているのは
+ * `https://t.co/xxxxx` で、そのままでは何のリンクか分からない。実 URL は
+ * `entities.urls[].expanded_url` にある。本文は原文ママのまま、後ろに添える。
+ *
+ * 並びは現れた順（決定論のため並べ替えない）。同じ URL は最初の 1 回だけ。
+ */
+function xLinks(tweet: Tweet): string[] {
+  const links: string[] = [];
+  for (const entry of tweet.entities?.urls ?? []) {
+    if (!entry || typeof entry !== "object") continue;
+    const value = String(entry.expanded_url ?? entry.url ?? "");
+    if ((value.startsWith("http://") || value.startsWith("https://")) && !links.includes(value)) {
+      links.push(value);
+    }
+  }
+  return links;
+}
+
+/**
+ * X の `full_text` は `&` `<` `>` が HTML エスケープされている。
+ *
+ * これは本人が打った文字ではなく運び方の都合なので開く。開かないと
+ * Obsidian で読みにくく、全文検索でも `&` を含む語が引けない
+ * （MCP の `\uXXXX` を開くのと同じ理由）。`&amp;` は最後 ——
+ * 先に開くと `&amp;lt;` が `<` まで戻ってしまう。
+ */
+function xUnescape(text: string): string {
+  return text
+    .replaceAll("&lt;", "<")
+    .replaceAll("&gt;", ">")
+    .replaceAll("&amp;", "&");
+}
+
+/**
+ * X（旧 Twitter）。取りに行く先は API ではなく手元のアーカイブ。
+ *
+ * リツイートは他人の言葉なので落とす（Bluesky の `reason` と同じ扱い）。
+ * 見分けるのは本文の `RT @name: ` —— アーカイブの `retweeted` は
+ * リツイートでも false のまま入っているので当てにならない。しかも RT の
+ * 本文はアーカイブの時点で切り詰められているので、拾っても原文にならない。
+ *
+ * 返信は自分の言葉なので拾う。誰への返信かだけ印に足す —— アーカイブには
+ * 相手の投稿が入っていないので、これが唯一の手がかりになる。
+ */
+function x(writer: Writer, since: string | null): number {
+  const dir = xRoot();
+  if (dir === null) throw new Unreachable(`${X_ARCHIVE}: アーカイブがありません`);
+
+  const posts: Post[] = [];
+  for (const part of xParts(dir)) {
+    for (const raw of xRead(part)) {
+      if (!raw || typeof raw !== "object") continue;
+      const tweet = (raw as { tweet?: unknown }).tweet;
+      if (!tweet || typeof tweet !== "object") continue;
+      const it = tweet as Tweet;
+
+      const text = xUnescape(String(it.full_text ?? "")).trim();
+      if (!text) continue;
+      if (/^RT @[A-Za-z0-9_]+: /.test(text)) continue; // リツイート
+      const dt = jst(it.created_at);
+      if (!dt) continue;
+
+      const to = String(it.in_reply_to_screen_name ?? "");
+      posts.push({
+        dt,
+        ident: String(it.id_str ?? ""),
+        text,
+        note: to ? `返信 @${to}` : "",
+        links: xLinks(it),
+      });
+    }
+  }
+
+  return bundle(writer, "x", posts, since);
+}
+
 /**
  * 投稿を日ごとに束ねて書く。
  *
@@ -451,7 +616,7 @@ function renderDay(source: string, date: string, items: readonly Post[]): string
 
 // ---------------------------------------------------------------- 入口
 
-const SOURCES = ["blog", "bluesky", "misskey"] as const;
+const SOURCES = ["blog", "bluesky", "misskey", "x"] as const;
 type Source = (typeof SOURCES)[number];
 
 async function main(): Promise<number> {
@@ -459,6 +624,8 @@ async function main(): Promise<number> {
   const since = parseSince(args.values.since);
   if (since === undefined) return 2;
 
+  // 名指しされたかどうかは下で使う（X をいつ黙って飛ばすかの判断）。
+  const named = args.values.source !== undefined;
   const wanted: readonly Source[] = args.values.source
     ? (args.values.source.split(",").filter((s): s is Source =>
         (SOURCES as readonly string[]).includes(s)))
@@ -471,13 +638,20 @@ async function main(): Promise<number> {
 
   for (const name of SOURCES) {
     if (!wanted.includes(name)) continue;
+    // X のアーカイブをまだ落としていないのは「とどかなかった」ではなく
+    // 「まだ無い」。毎晩の便に嘘の失敗を出させないよう黙って飛ばす
+    // （--source x と名指しされたときだけ、無いことをちゃんと言う）。
+    if (name === "x" && !named && xRoot() === null) continue;
+
     const before = { ...writer.stats };
     try {
       const got = name === "blog"
         ? await blog(writer, site, since)
         : name === "bluesky"
           ? await bluesky(writer, since)
-          : await misskey(writer, since);
+          : name === "misskey"
+            ? await misskey(writer, since)
+            : x(writer, since);
       counts.set(name, got);
     } catch (err) {
       // 取りに行けなかったソースは無かったことにする。この回に

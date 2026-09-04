@@ -4,7 +4,7 @@
  *
  * 夜のうちに拾って回る。sessions・me・aibo・posts・work・entities・profile・
  * weekly・trend・diary・events を順に流し、索引を刻み直して、拠点を git commit
- * する。diary と events は中で `claude` を呼ぶ（きのうの日記と、終わった月の
+ * する。diary と events と outlook は中で `claude` を呼ぶ（きのうの日記と、終わった月の
  * 出来事を書く）。
  * systemd user timer から呼ばれる。
  *
@@ -40,7 +40,7 @@ const STEP_TIMEOUT = 600_000;
 
 /** 拠点の部屋。コミットのメッセージに数を出すのに使う。 */
 const ROOMS: readonly string[] = ["会話", "自分", "アイボ", "日記", "投稿", "作業",
-  "事典", "プロフィール", "週報"];
+  "事典", "プロフィール", "週報", "アーカイブ"];
 
 /**
  * 道具を1本流す。戻り値は [成功したか, 1行の報告]。
@@ -184,6 +184,8 @@ function main(): number {
     ["aibo", common],
     ["posts", common],
     ["work", common],
+    // 株は外から取ってくるので1階。`保有.json` が無ければ自分で諦める
+    ["stock", common],
     ["entities", common],
     ["profile", common],
     ["weekly", common],
@@ -195,6 +197,13 @@ function main(): number {
     // 書けていない月が溜まっていても夜が1時間走らないようにするため
     // （追記のみなので、次の便が続きから積む）
     ["events", [...common, "--limit", "12"]],
+    // 見立ては `株/` を読むだけなので日記より前でもいいが、その日の日記も
+    // 素材に入れているので日記のあと。中で `claude` を呼ぶ
+    ["outlook", common],
+    // 感想は日記が書かれてから。読者は日記1枚しか読まないので、
+    // ほかの部屋がそろっている必要は無い —— それでも最後に置くのは、
+    // その日の日記が確定してから読ませるため
+    ["comment", common],
   ];
   // 索引は素材が新しければ検索時に自分で刻み直すが、そのぶん最初の
   // 1回を人が待つことになる。夜のうちに刻んでおく。--dry-run のときは

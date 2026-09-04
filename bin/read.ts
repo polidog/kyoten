@@ -10,7 +10,7 @@
  */
 
 import { existsSync, readdirSync, statSync } from "node:fs";
-import { dirname, join, normalize, relative } from "node:path";
+import { basename, dirname, join, normalize, relative } from "node:path";
 
 import { KYOTEN, readText, splitFrontmatter } from "./util.ts";
 import { listFiles } from "./cli.ts";
@@ -483,24 +483,125 @@ export interface DiaryHead {
   readonly by: string;
   readonly lead: string;
   readonly path: string;
+  /** その日に感想を返した読者。一覧で「返事が来ている日」が分かるように */
+  readonly readBy: readonly string[];
 }
 
 export function diaryList(): readonly DiaryHead[] {
   const paths = listFiles(room("日記"), ".md");
-  return cached("diary", paths, () =>
-    paths.map((abs) => {
+  // 感想は読者ごとに1枚あるので、日ごとに引くと日数×読者数だけ舐めることに
+  // なる。ここで1回だけ並べて、ファイル名から日付と読者に割る
+  const said = listFiles(room("感想"), ".md");
+  return cached("diary", [...paths, ...said], () => {
+    const readers = new Map<string, string[]>();
+    for (const abs of said) {
+      const got = /^(\d{4}-\d{2}-\d{2})-(.+)\.md$/.exec(basename(abs));
+      if (!got) continue;
+      const list = readers.get(got[1]) ?? [];
+      list.push(got[2]);
+      readers.set(got[1], list);
+    }
+    return paths.map((abs) => {
       const doc = readDoc(abs);
+      const date = doc.fields.date || doc.title.replace(/ の日記$/, "");
       return {
-        date: doc.fields.date || doc.title.replace(/ の日記$/, ""),
+        date,
         by: doc.fields.by ?? "",
         lead: doc.lead,
         path: doc.path,
+        readBy: (readers.get(date) ?? []).sort(),
       };
-    }).sort((a, b) => a.date.localeCompare(b.date)));
+    }).sort((a, b) => a.date.localeCompare(b.date));
+  });
 }
 
 export function diary(date: string): Doc | null {
   const abs = room("日記", safeName(date).slice(0, 7), `${safeName(date)}.md`);
+  return existsSync(abs) ? readDoc(abs) : null;
+}
+
+// ---------------------------------------------------------------- 感想
+
+export interface CommentHead {
+  /** 誰が読んだか。日記の `by` と同じで、書き手が LLM なので機種を残す */
+  readonly by: string;
+  readonly doc: Doc;
+}
+
+/**
+ * その日の日記に付いた感想。
+ *
+ * 日記は1日1枚なので日付で引けるが、感想は**読者ごとに1枚**なので
+ * 引けない。`感想/YYYY-MM/YYYY-MM-DD-<読者>.md` を前方一致で拾う。
+ *
+ * 無い日がふつうにある（読者がこけた日、まだ書いていない日）。
+ * 感想が無いことは日記が読めない理由にならないので、空で返す。
+ */
+export function commentsOn(date: string): readonly CommentHead[] {
+  const dir = room("感想", safeName(date).slice(0, 7));
+  if (!existsSync(dir)) return [];
+  const head = `${safeName(date)}-`;
+  return listFiles(dir, ".md")
+    .filter((abs) => basename(abs).startsWith(head))
+    .map((abs) => {
+      const doc = readDoc(abs);
+      return { by: doc.fields.by || "", doc };
+    })
+    .sort((a, b) => a.by.localeCompare(b.by));
+}
+
+// ---------------------------------------------------------------- 株
+
+export interface StockHead {
+  readonly date: string;
+  /** 円での評価額。frontmatter にあるものをそのまま */
+  readonly value: number;
+  /** 損益。取得単価が書かれていなければ **null**（0 ではない） */
+  readonly gain: number | null;
+  readonly holdings: number;
+  readonly path: string;
+  /** その日に見立てが書かれているか。一覧で「言ってある日」が分かるように */
+  readonly said: boolean;
+}
+
+export function stockList(): readonly StockHead[] {
+  const paths = listFiles(room("株"), ".md");
+  const seen = listFiles(room("見立て"), ".md");
+  return cached("stock", [...paths, ...seen], () => {
+    const days = new Set(seen.map((abs) => basename(abs).slice(0, -3)));
+    return paths.map((abs) => {
+      const doc = readDoc(abs);
+      const date = doc.fields.date || doc.title.replace(/ の株$/, "");
+      return {
+        date,
+        value: num(doc.fields["評価額"]),
+        // 取得単価を書いていない銘柄があると frontmatter に `損益` が出ない。
+        // それを 0 にすると「損も得もしていない」に化ける（落とし穴63 と同じ形）
+        gain: doc.fields["損益"] === undefined ? null : num(doc.fields["損益"]),
+        holdings: num(doc.fields["銘柄"]),
+        path: doc.path,
+        said: days.has(date),
+      };
+    }).sort((a, b) => a.date.localeCompare(b.date));
+  });
+}
+
+export function stock(date: string): Doc | null {
+  const abs = room("株", safeName(date).slice(0, 7), `${safeName(date)}.md`);
+  return existsSync(abs) ? readDoc(abs) : null;
+}
+
+// ---------------------------------------------------------------- 見立て
+
+/**
+ * その日の値に付いた見立て。
+ *
+ * 感想（読者ごとに1枚）と違って1日1枚なので、日付でそのまま引ける。
+ * 見立ての無い日はふつうにある（`stock.ts` を流したが `outlook.ts` を
+ * まだ流していない日）。無いことは値が読めない理由にならないので null。
+ */
+export function outlookOn(date: string): Doc | null {
+  const abs = room("見立て", safeName(date).slice(0, 7), `${safeName(date)}.md`);
   return existsSync(abs) ? readDoc(abs) : null;
 }
 
@@ -559,8 +660,18 @@ export interface Summary {
   readonly diary: Doc | null;
   readonly diaryDate: string;
   readonly diaries: number;
+  /** その日記に返ってきた感想。まとめでも日記のすぐ下に出す */
+  readonly diaryComments: readonly CommentHead[];
   /** 出来事が書けている月の数。年表の見出しに出す */
   readonly eventMonths: number;
+  /** いちばん新しい株の1日。持っていなければ null */
+  readonly stock: Doc | null;
+  readonly stockHead: StockHead | null;
+  readonly stockDays: number;
+  /** その日に付いた見立て。まとめでも値のすぐ下に出す */
+  readonly stockOutlook: Doc | null;
+  /** ひとつ前の確定日の評価額。まとめで向きを出すため */
+  readonly stockBefore: number;
 }
 
 export function summary(): Summary | null {
@@ -597,7 +708,18 @@ export function summary(): Summary | null {
     })(),
     diaryDate: diaryList().at(-1)?.date ?? "",
     diaries: diaryList().length,
+    diaryComments: commentsOn(diaryList().at(-1)?.date ?? ""),
     eventMonths: eventList().length,
+    // 株もいちばん新しい1日だけ。持っていなければ全部 null / 0 になる
+    stock: (() => {
+      const tail = stockList().at(-1);
+      return tail ? stock(tail.date) : null;
+    })(),
+    stockHead: stockList().at(-1) ?? null,
+    stockDays: stockList().length,
+    stockOutlook: outlookOn(stockList().at(-1)?.date ?? ""),
+    // 前の日と比べたいだけなので、1つ前の確定日から借りる（自分で計算しない）
+    stockBefore: stockList().at(-2)?.value ?? 0,
   };
 }
 
@@ -672,6 +794,8 @@ const NOTE_NUM: readonly (readonly [string, string])[] = [
   ["sessions", "会話"],
   ["commits", "コミット"],
   ["troubles", "つまずき"],
+  ["銘柄", "銘柄"],
+  ["評価額", "評価額"],
 ];
 
 function noteOf(doc: Doc): string {

@@ -109,10 +109,19 @@ section:first-child{border-top:0}
   .aibo{width:78px}
 }
 
-/* アイボの日記 */
-.diary{background:var(--surface);border:2px solid var(--line);box-shadow:var(--shadow);padding:24px 28px;margin:0 5px}
-.diary p{margin:0 0 1.15em;line-height:2.05}
-.diary p:last-child{margin-bottom:0}
+/* アイボが書いたもの（日記と、株の見立て）。どちらも段落だけの文書 */
+.diary,.midate{background:var(--surface);border:2px solid var(--line);box-shadow:var(--shadow);padding:24px 28px;margin:0 5px}
+.diary p,.midate p{margin:0 0 1.15em;line-height:2.05}
+.diary p:last-child,.midate p:last-child{margin-bottom:0}
+/* 日記を読んだ人が返したもの。日記より一段ひかえめに */
+.said{display:flex;gap:20px;align-items:flex-start;margin:26px 5px 0}
+.said-who{flex:none;width:78px}
+.said-body{flex:1;min-width:0;border-left:3px solid var(--line);padding:2px 0 2px 18px}
+.said .who{color:var(--muted);font-size:12px;letter-spacing:.04em;margin:0 0 8px}
+.said p{margin:0 0 1em;line-height:1.95}
+.said p:last-child{margin-bottom:0}
+.said-tag{flex:none;padding:0 7px;font-size:11px;white-space:nowrap;
+  color:var(--ink-soft);background:var(--blue-wash);border:1px solid var(--line)}
 
 /* 年表（出来事）。間取りは kani.show から借りた —— 月で束ねて、
    日付・名前・一言の3つで1行にする。★ はその月でいちばん大きいもの */
@@ -274,11 +283,13 @@ mark{background:var(--gold-wash);color:var(--ink);border-bottom:1px solid var(--
   <a class="home" href="#/">＊ 鑑識 ＊</a>
   <a class="nav" href="#/" data-at="#/">まとめ</a>
   <a class="nav" href="#/list/diary">日記</a>
+  <a class="nav" href="#/list/stock">株</a>
   <a class="nav" href="#/list/weekly">週報</a>
   <a class="nav" href="#/list/trend">推移</a>
   <a class="nav" href="#/list/skill">スキル</a>
   <a class="nav" href="#/list/events">年表</a>
   <a class="nav" href="#/list/entity">事典</a>
+  <a class="nav" href="#/tree/%E3%82%A2%E3%83%BC%E3%82%AB%E3%82%A4%E3%83%96">アーカイブ</a>
   <a class="nav" href="#/tree/">部屋</a>
   <form id="find"><input id="q" type="search" placeholder="さがす（/ で飛ぶ）" autocomplete="off"></form>
 </div></nav>
@@ -523,8 +534,81 @@ var AIBO_B = [
 /** まばたき。目のところを塗りつぶして、まんなかに線を1本引く */
 var AIBO_EYES = [[6, 8], [17, 19]];
 
+/**
+ * シェパード —— 日記を読んで感想を返す、よその家の犬。
+ *
+ * 絵はアイボの形をそのまま借りて、**色だけ**替えてある（正面から見た
+ * ジャーマン・シェパード: 黒いマスク、タンのほおとむね、黒い肩）。
+ * 形が同じなのは手抜きではなく、同じ大きさで並ぶ2匹だから ——
+ * 見分けるのは色で足りる。
+ *
+ * 登場人物が増えるのは、機構が増えたときだけ。シェパードは
+ * `bin/comment.ts` が本当に別のプロセスで走らせている読者で、
+ * 名前だけの役者ではない（役者表を消したときの基準）。
+ */
+var SHEP_PAINT = {
+  o: "#171B2E", k: "#2A231C", s: "#B87F3C", n: "#141110",
+  e: "#D79A33", h: "#FFF6E2", p: "#3D2C1E", t: "#4A3728",
+};
+
+var SHEPHERD_A = [
+  "....okko..........okko....",
+  "...okppko........okppko...",
+  "...okppkooooooooookppko...",
+  "....ookkkkkkkkkkkkkkoo....",
+  "...okkkkkkkkkkkkkkkkkko...",
+  "...okkkkkkkkkkkkkkkkkko...",
+  "...ossheesskkkkssheesso...",
+  "...osseeesskkkksseeesso...",
+  "...osseeesskkkksseeesso...",
+  "...osskkkkkkkkkkkkkksso...",
+  "...ossssskknnnnkkssssso...",
+  "...ossssskknnnnkkssssso...",
+  "...ossssskkkookkkssssso...",
+  "....osssskkkkkkkksssso....",
+  ".....oossssssssssssoo.....",
+  "......otttttttttttto......",
+  "......okkksssssskkko.oo...",
+  "......okkksssssskkkoosso..",
+  "......okkksssssskkkoosso..",
+  "......okkksssssskkkosso...",
+  "......okkksssssssskkko....",
+  "......okkksssssskkkoo.....",
+  "......osssossssossso......",
+  ".......ooo.oooo.ooo.......",
+];
+var SHEPHERD_B = [
+  ".....oo............oo.....",
+  "....okko..........okko....",
+  "...okppkooooooooookppko...",
+  "....ookkkkkkkkkkkkkkoo....",
+  "...okkkkkkkkkkkkkkkkkko...",
+  "...okkkkkkkkkkkkkkkkkko...",
+  "...ossheesskkkkssheesso...",
+  "...osseeesskkkksseeesso...",
+  "...osseeesskkkksseeesso...",
+  "...osskkkkkkkkkkkkkksso...",
+  "...ossssskknnnnkkssssso...",
+  "...ossssskknnnnkkssssso...",
+  "...ossssskkkookkkssssso...",
+  "....osssskkkkkkkksssso....",
+  ".....oossssssssssssoo.....",
+  "......otttttttttttto......",
+  "......okkksssssskkko......",
+  "......okkksssssskkko......",
+  "......okkksssssskkko.oo...",
+  "......okkksssssskkkoosso..",
+  "......okkksssssskkkoosso..",
+  "......okkksssssskkkosso...",
+  "......osssossssossssso....",
+  ".......ooo.oooo.ooooo.....",
+];
+
+var SHEP_EYES = [[6, 8], [17, 19]];
+
 /** 同じ色が横に続くところは1本の帯にする（1こま 410 点 → 127 本） */
-function dots(rows) {
+function dots(rows, paint) {
+  paint = paint || AIBO_PAINT;
   var out = [];
   for (var y = 0; y < rows.length; y++) {
     var line = rows[y];
@@ -535,7 +619,7 @@ function dots(rows) {
       var run = 1;
       while (x + run < line.length && line[x + run] === c) run++;
       out.push('<rect x="' + x + '" y="' + y + '" width="' + run + '" height="1" fill="' +
-        AIBO_PAINT[c] + '"/>');
+        paint[c] + '"/>');
       x += run;
     }
   }
@@ -553,6 +637,47 @@ function aibo(small) {
     '<g class="f1">' + dots(AIBO_A) + "</g>" +
     '<g class="f2">' + dots(AIBO_B) + "</g>" +
     '<g class="blink">' + shut + "</g></svg>";
+}
+
+function shepherd(small) {
+  var shut = SHEP_EYES.map(function (e) {
+    var w = e[1] - e[0] + 1;
+    return '<rect x="' + e[0] + '" y="6" width="' + w + '" height="3" fill="' + SHEP_PAINT.k + '"/>' +
+      '<rect x="' + e[0] + '" y="7" width="' + w + '" height="1" fill="' + SHEP_PAINT.o + '"/>';
+  }).join("");
+  return '<svg class="aibo' + (small ? " small" : "") + '" viewBox="0 0 26 24" role="img" ' +
+    'shape-rendering="crispEdges"><title>シェパード</title>' +
+    '<g class="f1">' + dots(SHEPHERD_A, SHEP_PAINT) + "</g>" +
+    '<g class="f2">' + dots(SHEPHERD_B, SHEP_PAINT) + "</g>" +
+    '<g class="blink">' + shut + "</g></svg>";
+}
+
+/**
+ * 感想を1つ描く。
+ *
+ * 読者は**1匹**（シェパード）で、`by` はそれを走らせた機械の名前
+ * —— 日記の `by: claude-opus-5` と同じ扱い。だから名前は絵の側に置いて、
+ * 機械の名前は小さく添える。
+ */
+function saidBlock(c) {
+  return '<div class="said"><div class="said-who">' + shepherd(true) +
+    '<div class="aibo-who">シェパード</div></div>' +
+    '<div class="said-body"><p class="who">読んで（' + esc(c.by) + "）</p>" +
+    paragraphs(c.doc.body) + "</div></div>";
+}
+
+/**
+ * 見立てを1枚描く。
+ *
+ * 書いたのはアイボ（日記と同じ相棒）なので、絵も同じ。`by` はそれを走らせた
+ * 機械の名前で、日記の `by: claude-opus-5` と同じ扱い。
+ */
+function midateBlock(doc) {
+  return '<div class="said"><div class="said-who">' + aibo(true) +
+    '<div class="aibo-who">アイボ</div></div>' +
+    '<div class="said-body"><p class="who">見立て（' +
+    esc((doc.fields && doc.fields.by) || "") + "）</p>" +
+    paragraphs(doc.body) + "</div></div>";
 }
 
 /** 日記のとなりに座らせる */
@@ -642,7 +767,39 @@ function renderSummary(s) {
       "同じ日を二度書くと違うものになる。だから一度書いたら書き直さない。" +
       "ぜんぶで <b>" + num(s.diaries) + "</b> 日ぶん。"));
     out.push(aiboBeside('<div class="diary">' + paragraphs(s.diary.body) + "</div>"));
+    // 感想は日記の外に置く。返したのはあとから読んだ人なので、日記の一部に
+    // 見えてはいけない（1枚を開いたときと同じ扱い）
+    (s.diaryComments || []).forEach(function (c) { out.push(saidBlock(c)); });
     out.push('<p class="more">▶ <a href="#/list/diary">日記をぜんぶ読む</a></p>');
+    out.push("</section>");
+  }
+
+  if (s.stock) {
+    var st = s.stockHead || {};
+    // 前の確定日との差。拠点にある2つの数を引くだけで、自分では計算し直さない
+    var move = s.stockBefore ? st.value - s.stockBefore : null;
+    out.push("<section>");
+    out.push(secHead("株　" + esc(st.date || ""), "もっている ものの 値",
+      "書いてあるのは<b>確定した終値</b>だけ。場が開いているあいだの値は書かない —— " +
+      "書くと同じ日が走らせるたびに変わってしまうので。" +
+      "ぜんぶで <b>" + num(s.stockDays) + "</b> 日ぶん。"));
+    out.push('<div class="win status"><div class="st-grid">');
+    out.push("<div><span>評価額</span><b>" + num(st.value) + "円</b></div>");
+    out.push("<div><span>損益</span><b>" +
+      (st.gain === null || st.gain === undefined
+        ? "—"
+        : (st.gain >= 0 ? "+" : "-") + num(Math.abs(st.gain)) + "円") + "</b></div>");
+    if (move !== null) {
+      out.push("<div><span>前の日から</span><b>" +
+        (move >= 0 ? "+" : "-") + num(Math.abs(move)) + "円</b></div>");
+    }
+    out.push("<div><span>銘柄</span><b>" + num(st.holdings) + "</b></div>");
+    out.push("</div></div>");
+    // 値そのもの（機械が数えたもの）
+    out.push('<div class="doc">' + md(s.stock.body) + "</div>");
+    // 見立ては値の外に置く。値の一部に見えてはいけない
+    if (s.stockOutlook) out.push(midateBlock(s.stockOutlook));
+    out.push('<p class="more">▶ <a href="#/list/stock">' + num(s.stockDays) + "日ぶんの値を読む</a></p>");
     out.push("</section>");
   }
 
@@ -825,6 +982,11 @@ function placeCard(p) {
 
 var LISTS = {
   diary: { kicker: "日記", title: "アイボが 書いた 日", note: "一度書いたら書き直さない部屋。新しい日から。" },
+  stock: {
+    kicker: "株", title: "もっている ものの 値",
+    note: "書いてあるのは<b>確定した終値</b>だけ（場が開いているあいだの値は書かない）。" +
+      "銘柄と株数だけは手で書いた台帳から来ていて、値も評価額も機械が起こしたもの。",
+  },
   weekly: { kicker: "週報", title: "週ごとの 観測", note: "その週の終わりまでに分かっていたことだけで書いてある。" },
   trend: { kicker: "推移", title: "つもった もの", note: "累計は「拠点にあるもの」の累計であって、起きたことの累計ではない。" },
   skill: { kicker: "スキル", title: "くりかえし あらわれる かた", note: "手が動いたファイルと書いた記事から起こしたもの。" },
@@ -848,10 +1010,28 @@ function renderList(kind, items, extra) {
   if (kind === "diary") {
     out.push('<div class="rows">');
     items.slice().reverse().forEach(function (d) {
+      // 読者は1匹なので、`readBy`（機械の名前）は数えるだけで名前は出さない
+      var read = (d.readBy || []).length ? '<span class="said-tag">シェパードが読んだ</span>' : "";
       out.push('<a class="row" href="' + docHref(d.path) + '">' +
         '<span class="r-key">' + esc(d.date) + "</span>" +
-        '<span class="r-body">' + esc(d.lead) + "</span>" +
+        '<span class="r-body">' + esc(d.lead) + "</span>" + read +
         '<span class="r-num">' + esc(d.by) + "</span></a>");
+    });
+    out.push("</div>");
+  } else if (kind === "stock") {
+    var maxV = Math.max.apply(null, items.map(function (d) { return d.value; }).concat([1]));
+    out.push('<div class="rows">');
+    items.slice().reverse().forEach(function (d) {
+      // 見立ては「その日に言ってある」印。日記の「シェパードが読んだ」と同じ扱い
+      var said = d.said ? '<span class="said-tag">見立てあり</span>' : "";
+      // 損益は null（取得単価が無い）と 0 を分ける。0 にすると「損も得もない」に化ける
+      var gain = d.gain === null ? "—"
+        : (d.gain >= 0 ? "+" : "-") + num(Math.abs(d.gain)) + "円";
+      out.push('<a class="row" href="' + docHref(d.path) + '">' +
+        '<span class="r-key">' + esc(d.date) + "</span>" +
+        '<span class="r-body">' + num(d.value) + "円　" + esc(gain) + "</span>" + said +
+        '<span class="r-track"><i style="width:' + ((d.value / maxV) * 100).toFixed(2) + '%"></i></span>' +
+        '<span class="r-num">' + num(d.holdings) + "</span></a>");
     });
     out.push("</div>");
   } else if (kind === "weekly" || kind === "trend") {
@@ -947,6 +1127,12 @@ function renderDoc(doc) {
     '<button class="btn on" id="as-md">よみもの</button>' +
     '<button class="btn" id="as-raw">原文</button></div>');
   out.push('<div class="doc" id="body">' + md(doc.body) + "</div>");
+  // 感想は本文の外に置く。「原文」に切り替えても消えないし、日記の一部
+  // としても混ざらない —— 返したのはあとから読んだ人なので
+  (doc.comments || []).forEach(function (c) { out.push(saidBlock(c)); });
+  // 見立ても本文の外。値は機械が数えたもので、見立てはそれを見てアイボが
+  // 言ったもの —— 同じ紙に混ぜない（日記と感想の関係と同じ）
+  if (doc.outlook) out.push(midateBlock(doc.outlook));
   out.push("</section>");
   show(out.join(""));
 
@@ -969,7 +1155,7 @@ function renderDoc(doc) {
 
 // ---------------------------------------------------------------- さがす
 
-var ROOMS = ["会話", "自分", "アイボ", "日記", "出来事", "投稿", "作業", "事典", "プロフィール", "週報", "読書メモ"];
+var ROOMS = ["会話", "自分", "アイボ", "日記", "感想", "出来事", "投稿", "作業", "株", "見立て", "事典", "プロフィール", "週報", "アーカイブ"];
 var findRoom = "";
 
 async function renderSearch(q) {
@@ -1011,8 +1197,11 @@ var OF_ROOM = [
   ["出来事", "#/list/events"],
   ["プロフィール/推移", "#/list/trend"],
   ["日記", "#/list/diary"],
+  ["株", "#/list/stock"],
+  ["見立て", "#/list/stock"],
   ["週報", "#/list/weekly"],
   ["事典", "#/list/entity"],
+  ["アーカイブ", treeHref("アーカイブ")],
 ];
 
 function navOf(hash) {
@@ -1027,7 +1216,13 @@ function navOf(hash) {
     }
     return "#/tree/";
   }
-  if (hash.indexOf("#/tree/") === 0) return "#/tree/";
+  if (hash.indexOf("#/tree/") === 0) {
+    var treePath = unurl(hash.slice(7));
+    if (treePath === "アーカイブ" || treePath.indexOf("アーカイブ/") === 0) {
+      return treeHref("アーカイブ");
+    }
+    return "#/tree/";
+  }
   return "";
 }
 
