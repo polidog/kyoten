@@ -7,11 +7,20 @@
  *
  * ## 保有だけは手で書く（原則4 の唯一の例外）
  *
+ * 台帳は **Markdown の表**にしてある。JSON で置いていたが、**Obsidian は
+ * `.json` をファイル一覧に出さない**（`showUnsupportedFiles` が既定で off）。
+ * 唯一手で書くファイルが Obsidian で開けないのでは、拠点をベースにする
+ * 意味が無い。表なら Obsidian でそのまま開いて、行を足して閉じられる。
+ *
+ * そのぶん JSON の厳しさが無くなるので、**読めない行は飛ばさずに止める**。
+ * 黙って飛ばすと保有が1本減ったまま評価額を書き、`株/` は追記のみなので
+ * あとから直せない。
+ *
  * 原則4 は「拠点に人間が手入力する部屋を作らない」だが、**何を何株
  * 持っているかはログから機械では起こせない**。証券会社のログは手元に
  * 無いし、会話ログにも書いていない。
  *
- * だから `株/保有.json` の1枚だけを例外にする。手で書くのはここだけで、
+ * だから `株/保有.md` の1枚だけを例外にする。手で書くのはここだけで、
  * **値も評価額も見立ても全部そこから機械が起こす**。原則4 が止めたかった
  * のは「毎日せっせと書き足す部屋」であって（`00_思考`・Discord秘書・
  * agent-tracer は全部それで死んだ）、買ったときに1行足すだけの台帳は
@@ -38,7 +47,7 @@
  *    投信協会の CSV は確定した基準価額しか載らないので、こちらは捨てない。
  *
  * 2. **拠点にある最後の日より先だけ書く**（落とし穴18 の形）。過去を
- *    埋め戻さないのは、`保有.json` が**いまの株数**しか持っていないから。
+ *    埋め戻さないのは、`保有.md` が**いまの株数**しか持っていないから。
  *    去年の株価に今日の株数を掛けたら、持っていなかった株の評価額を
  *    でっち上げることになる。だから `株/` は実質**追記のみ** —— あとで
  *    買い増しても、書いてある日は書き換えない。
@@ -50,7 +59,7 @@
  *     stock.ts --now           # いまの値を出すだけ（書かない）
  *     stock.ts --dry-run       # 書かずに結果だけ
  *     stock.ts --quiet         # 1行だけ（定時便用）
- *     stock.ts --init          # 保有.json の雛形を出す
+ *     stock.ts --init          # 保有.md の雛形を出す
  */
 
 import { existsSync } from "node:fs";
@@ -60,7 +69,7 @@ import { KYOTEN, frontmatter, n, readText, writeIfChanged } from "./util.ts";
 import { listFiles, parseArgs } from "./cli.ts";
 
 const ROOM = join(KYOTEN, "株");
-const HOLDINGS = join(ROOM, "保有.json");
+const HOLDINGS = join(ROOM, "保有.md");
 
 /** 1本にかける上限。夜に走るので待てるが、ぶら下がらせはしない。 */
 const TIMEOUT = 20_000;
@@ -94,20 +103,34 @@ export interface Book {
   readonly refs: readonly string[];
 }
 
-const TEMPLATE = `{
-  "保有": [
-    { "銘柄": "7203.T", "名前": "トヨタ自動車", "株数": 100, "取得単価": 2800 },
-    { "銘柄": "AAPL", "名前": "Apple", "株数": 10, "取得単価": 180, "取得レート": 148.2 },
-    {
-      "投信": "0331418A",
-      "isin": "JP90C000H1T1",
-      "名前": "eMAXIS Slim 全世界株式（オール・カントリー）",
-      "口数": 1234567,
-      "取得単価": 21500
-    }
-  ],
-  "参考": ["^N225", "USDJPY=X"]
-}
+const TEMPLATE = `---
+room: 株
+---
+
+# 保有
+
+**ここだけ手で書く。** 買ったら行を足し、売ったら行を消す。
+値も評価額も見立ても、ぜんぶここから機械が起こす。
+
+- \`銘柄\` … 株・ETF は Yahoo のコード（\`4813.T\` \`AAPL\`）。投資信託は協会コード
+- \`isin\` … 投資信託のときだけ要る（株なら空のまま）
+- \`数\` … 株数。投資信託は口数
+- \`取得単価\` … 買った値段。投資信託は1万口あたり。分からなければ空でよい
+  （評価額だけ出て、損益は \`—\` になる）
+- \`取得レート\` … 外貨で買ったときの円レート。円建てなら空
+
+| 銘柄 | isin | 名前 | 数 | 取得単価 | 取得レート |
+|---|---|---|---|---|---|
+| 4813.T |  | ACCESS | 100 | 380 |  |
+| AAPL |  | Apple | 10 | 180 | 148.2 |
+| 0331418A | JP90C000H1T1 | eMAXIS Slim 全世界株式（オール・カントリー） | 1234567 | 21500 |  |
+
+## 参考
+
+持ってはいないが、横に置いておきたいもの。
+
+- ^N225
+- USDJPY=X
 `;
 
 function num(v: unknown): number {
@@ -115,43 +138,111 @@ function num(v: unknown): number {
 }
 
 /**
- * `株/保有.json` を読む。キーは日本語 —— ここは人が手で書く唯一の場所なので、
- * コードの識別子ではなく読める名前にしてある。
+ * 人が手で書いた数を読む。`1,234,567` も `100株` も通す。
+ * 空なら null（「書いていない」）、数として読めなければ undefined（＝止める合図）。
+ */
+function cell(raw: string): number | null | undefined {
+  const t = raw.replace(/[,\s円株口]/g, "");
+  if (!t) return null;
+  const v = Number(t);
+  return Number.isFinite(v) ? v : undefined;
+}
+
+/** `| a | b |` の1行を升目に割る。 */
+function cells(line: string): string[] {
+  return line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => c.trim());
+}
+
+/** 区切りの行（`|---|---|`）か。 */
+function isRule(row: readonly string[]): boolean {
+  return row.length > 0 && row.every((c) => /^:?-{2,}:?$/.test(c));
+}
+
+const TROUBLE = `雛形は stock.ts --init`;
+
+/**
+ * `株/保有.md` を読む。手で書く唯一の場所なので、見出しも列の名前も日本語。
+ *
+ * **読めない行は飛ばさない。** 黙って飛ばすと保有が1本減ったまま評価額を
+ * 書いてしまい、`株/` は追記のみなので後から直せない（落とし穴14 と同じ形で、
+ * 「読めなかった」を「持っていない」にしない）。
  */
 export function readBook(): Book | null {
   const text = readText(HOLDINGS);
   if (!text.trim()) return null;
 
-  let raw: Record<string, unknown>;
-  try {
-    raw = JSON.parse(text) as Record<string, unknown>;
-  } catch (err) {
-    console.error(`${HOLDINGS} が読めません: ${(err as Error).message}`);
+  const lines = text.split("\n");
+  const table = lines.filter((l) => l.trim().startsWith("|"));
+  if (table.length < 2) {
+    console.error(`${HOLDINGS} に保有の表がありません`);
+    console.error(TROUBLE);
     return null;
   }
 
-  const rows = Array.isArray(raw["保有"]) ? (raw["保有"] as Record<string, unknown>[]) : [];
+  const head = cells(table[0]);
+  const at = (name: string) => head.indexOf(name);
+  const iCode = at("銘柄");
+  const iName = at("名前");
+  const iUnits = at("数");
+  if (iCode < 0 || iName < 0 || iUnits < 0) {
+    console.error(`${HOLDINGS} の表の見出しに「銘柄」「名前」「数」が要ります`);
+    console.error(`  いまの見出し: ${head.join(" / ")}`);
+    return null;
+  }
+  const iIsin = at("isin");
+  const iCost = at("取得単価");
+  const iRate = at("取得レート");
+
   const holdings: Holding[] = [];
-  for (const row of rows) {
-    const symbol = String(row["銘柄"] ?? "").trim();
-    const fund = String(row["投信"] ?? "").trim();
-    if (!symbol && !fund) continue;
+  for (let n = 1; n < table.length; n++) {
+    const row = cells(table[n]);
+    if (isRule(row)) continue;
+    const code = (row[iCode] ?? "").trim();
+    // 空の行は、表の下に余白として置かれることがある。銘柄が無ければ飛ばす
+    if (!code) continue;
+
+    const name = (row[iName] ?? "").trim();
+    const units = cell(row[iUnits] ?? "");
+    const cost = iCost < 0 ? null : cell(row[iCost] ?? "");
+    const rate = iRate < 0 ? null : cell(row[iRate] ?? "");
+    const bad = [
+      units === undefined ? "数" : "",
+      cost === undefined ? "取得単価" : "",
+      rate === undefined ? "取得レート" : "",
+    ].filter(Boolean);
+    if (bad.length) {
+      console.error(`${HOLDINGS} の「${name || code}」の ${bad.join("・")} が数として読めません`);
+      console.error(`  ${table[n].trim()}`);
+      return null;
+    }
+
+    const isin = iIsin < 0 ? "" : (row[iIsin] ?? "").trim();
     holdings.push({
-      symbol,
-      fund,
-      isin: String(row["isin"] ?? "").trim(),
-      name: String(row["名前"] ?? "").trim() || symbol || fund,
-      units: num(row["株数"]) || num(row["口数"]),
-      // 書いていないものを 0 にしない。0 にすると取得額 0 円になって、
-      // 損益が評価額まるごとになる（落とし穴14 と同じ形: 無いものを 0 で埋めない）
-      cost: typeof row["取得単価"] === "number" ? (row["取得単価"] as number) : null,
-      rate: typeof row["取得レート"] === "number" ? (row["取得レート"] as number) : null,
+      // isin が書いてあれば投資信託。無ければ Yahoo の銘柄コード
+      symbol: isin ? "" : code,
+      fund: isin ? code : "",
+      isin,
+      name: name || code,
+      units: units ?? 0,
+      // 0 も「書いていない」扱い。買値が 0 円の持ち株は無いので、
+      // 埋め忘れたまま流しても損益が評価額まるごとに化けない
+      cost: cost !== null && cost > 0 ? cost : null,
+      rate: rate !== null && rate > 0 ? rate : null,
     });
   }
 
-  const refs = Array.isArray(raw["参考"])
-    ? (raw["参考"] as unknown[]).map((s) => String(s).trim()).filter(Boolean)
-    : [];
+  // `## 参考` の下の箇条書き
+  const refs: string[] = [];
+  let inRefs = false;
+  for (const line of lines) {
+    if (/^#{1,6}\s/.test(line)) {
+      inRefs = /^#{1,6}\s*参考\s*$/.test(line.trim());
+      continue;
+    }
+    if (!inRefs) continue;
+    const got = /^\s*[-*]\s+(\S+)/.exec(line);
+    if (got) refs.push(got[1]);
+  }
 
   return { holdings, refs };
 }
@@ -215,6 +306,39 @@ function stillMoving(
   return seen < end;
 }
 
+/**
+ * 引けたのに空いている当日ぶんを、確定した終値で埋める。
+ *
+ * Yahoo は場が引けたあとも、複数日ぶんを頼んだときの日足バーを
+ * しばらく `close: null` のまま返す（実測: 東証が 15:30 に引けて
+ * **9時間半たっても null**。`range=1d` だけは埋まっていて 421 だった）。
+ *
+ * 放っておくと、定時便（03:00）がその日を書けない。値も見立ても
+ * まるまる1日遅れて積まれることになる。
+ *
+ * 引けていれば `regularMarketPrice` がその場の確定した終値なので、
+ * **バーの無い日だけ**それで埋める（`range=1d` の値と一致することを
+ * 実測で確かめてある）。バーがあるならそちらを優先するので、翌日に
+ * 埋まっても値が二重にはならない。
+ */
+function fillClosed(
+  closes: Map<string, number>,
+  meta: Record<string, unknown>,
+  offset: number,
+): void {
+  const period = (meta.currentTradingPeriod as Record<string, unknown> | undefined)
+    ?.regular as Record<string, unknown> | undefined;
+  const end = num(period?.end);
+  const seen = num(meta.regularMarketTime);
+  const price = meta.regularMarketPrice;
+  // 引けていないなら、その値はまだ動く
+  if (!end || !seen || seen < end) return;
+  if (typeof price !== "number" || !Number.isFinite(price)) return;
+
+  const date = new Date((end + offset) * 1000).toISOString().slice(0, 10);
+  if (!closes.has(date)) closes.set(date, price);
+}
+
 /** Yahoo の日足。まだ動いているバーは捨てる。 */
 async function fetchQuote(symbol: string, fallbackName: string): Promise<Series> {
   let body: Record<string, unknown>;
@@ -249,11 +373,14 @@ async function fetchQuote(symbol: string, fallbackName: string): Promise<Series>
   const newest = pairs.at(-1)?.[0];
   if (newest && stillMoving(meta, newest, offset)) pairs.pop();
 
+  const closes = new Map(pairs);
+  fillClosed(closes, meta, offset);
+
   return {
     key: symbol,
     name: String(meta.longName ?? meta.shortName ?? (fallbackName || symbol)),
     currency: String(meta.currency ?? ""),
-    closes: new Map(pairs),
+    closes,
     now: typeof meta.regularMarketPrice === "number" ? meta.regularMarketPrice : null,
     nowChangePct:
       typeof meta.regularMarketChangePercent === "number"
@@ -360,7 +487,7 @@ export interface Line {
   readonly valueJpy: number | null;
   /** 円での取得額。取得単価か取得レートが無ければ null。 */
   readonly costJpy: number | null;
-  /** 取得額が出せなかった理由（`保有.json` に無い項目の名前）。出せたなら空。 */
+  /** 取得額が出せなかった理由（`保有.md` に無い項目の名前）。出せたなら空。 */
   readonly lacks: string;
 }
 
@@ -403,13 +530,18 @@ export function valueOn(
       changePct = series.nowChangePct;
     }
 
-    const value = price === null ? null : price * unitsOf(h);
+    // 数が書かれていなければ、評価額は「分からない」。0 にすると
+    // 「持っていない」ことになって、合計が静かに小さくなる
+    const known = h.units > 0;
+    const value = price === null || !known ? null : price * unitsOf(h);
     const rate = rateFor(series, fx);
     const valueJpy = value !== null && rate !== null ? value * rate : null;
     // 取得単価が要る。外貨ならさらに取得時のレートも要る。
     // どちらか欠けたら円建ての損益は出さない（でっち上げない）
     const costRate = !series.currency || series.currency === "JPY" ? 1 : h.rate;
-    const lacks = h.cost === null ? "取得単価" : costRate === null ? "取得レート" : "";
+    const lacks = !known
+      ? (h.fund ? "口数" : "株数")
+      : h.cost === null ? "取得単価" : costRate === null ? "取得レート" : "";
     const costJpy = lacks ? null : h.cost! * unitsOf(h) * costRate!;
 
     out.push({ holding: h, series, price, changePct, value, valueJpy, costJpy, lacks });
@@ -480,6 +612,8 @@ export function totalOf(lines: readonly Line[]): Total {
     if (line.costJpy === null) missing.push(`${line.holding.name}: ${line.lacks}`);
     else cost += line.costJpy;
   }
+  // 評価額が1つでも分からなければ、合計も分からない。足せるものだけ足すと
+  // 「持っている額」が静かに小さく出る（落とし穴14 と同じ形）
 
   const v = valueOk ? value : null;
   const c = missing.length ? null : cost;
@@ -506,7 +640,7 @@ function table(lines: readonly Line[], fx: number | null): string {
       : null;
     rows.push(
       `| ${label} | ${money(line.price)}${cur} | ${pct(line.changePct)} | ` +
-        `${n(h.units)} | ${money(line.valueJpy)} | ${signed(gain)} |`,
+        `${h.units > 0 ? n(h.units) : "—"} | ${money(line.valueJpy)} | ${signed(gain)} |`,
     );
   }
   // 外貨建てを1つも持っていないなら、為替の行は出さない（使っていないので）
@@ -550,7 +684,7 @@ function render(
     body.push(`- 取得額 ${money(total.cost, "円")}`);
     body.push(`- 損益 ${signed(total.gain, "円")}（${pct(total.gainPct)}）`);
   } else {
-    body.push(`- 取得額 —（${total.missing.join("、")} が 保有.json に無い）`);
+    body.push(`- 取得額 —（${total.missing.join("、")} が 保有.md に無い）`);
   }
 
   const refs = refLine(book, data, date);
@@ -582,7 +716,7 @@ function showNow(book: Book, data: Map<string, Series>, fx: number | null): void
     console.log(`  取得額 ${money(total.cost, "円")}`);
     console.log(`  損益   ${signed(total.gain, "円")}（${pct(total.gainPct)}）`);
   } else {
-    console.log(`  取得額 —（${total.missing.join("、")} が 保有.json に無い）`);
+    console.log(`  取得額 —（${total.missing.join("、")} が 保有.md に無い）`);
   }
 
   const refs = refLine(book, data, null);
@@ -604,12 +738,12 @@ async function main(): Promise<number> {
   }
 
   // 「まだ持っていない」と「壊れている」を分ける（落とし穴14 と同じ形）。
-  // 無いだけなら 0 で終わる —— 定時便に組んであるので、保有.json を置く前の
+  // 無いだけなら 0 で終わる —— 定時便に組んであるので、保有.md を置く前の
   // 夜が毎晩「失敗」で埋まるのは違う。
   if (!existsSync(HOLDINGS)) {
     // `--quiet` でも黙らない。定時便は stdout の1行で読むので、何も出さないと
     // 「何も言わずに終わった」になる（落とし穴25 と同じ形）
-    if (args.flags.quiet) console.log("stock: 保有.json がまだ無い（stock.ts --init）");
+    if (args.flags.quiet) console.log("stock: 保有.md がまだ無い（stock.ts --init）");
     else {
       console.log(`  株           : ${HOLDINGS} がまだ無い`);
       console.log("  雛形は stock.ts --init");
@@ -625,15 +759,16 @@ async function main(): Promise<number> {
   }
 
   // 株数を書き忘れたまま流すと、評価額 0 円の日が拠点に積まれる。
-  // `株/` は追記のみで書き換えないので、積んでしまうと手で消すしかない
+  // `株/` は追記のみで書き換えないので、積んでしまうと手で消すしかない。
+  //
+  // ここは「壊れている」ではなく「まだ書きかけ」なので **0 で終わる**
+  // （落とし穴64）。定時便に組んであるので、埋めるまで毎晩「失敗」が
+  // 並ぶのは違う。ただし黙りはしない —— 何が足りないかを毎回名指しする。
+  //
+  // 門を置くのは**書く道だけ**。`--now` は拠点に書かないので、埋まっている
+  // ぶんは見せてよい（合計だけは出さない。足せるものだけ足すと嘘になる）。
   const blank = book.holdings.filter((h) => h.units <= 0);
-  if (blank.length) {
-    for (const h of blank) {
-      console.error(`  ✗ ${h.name}: ${h.fund ? "口数" : "株数"} が ${HOLDINGS} に無い`);
-    }
-    console.error("書きかけのまま流すと、評価額 0 円の日が積まれます。今回は書きません");
-    return 1;
-  }
+  const names = blank.map((h) => `${h.name}: ${h.fund ? "口数" : "株数"}`);
 
   // 円換算のレート。`参考` に書いていなくても、外貨建てがあれば黙って引く
   const data = await fetchAll(book);
@@ -641,6 +776,16 @@ async function main(): Promise<number> {
 
   if (args.flags.now) {
     showNow(book, data, fxAt(usd, null));
+    return 0;
+  }
+
+  if (blank.length) {
+    if (args.flags.quiet) {
+      console.log(`stock: まだ書きかけ（${names.join("、")} が ${HOLDINGS} に無い）`);
+    } else {
+      for (const name of names) console.log(`  ✗ ${name} が ${HOLDINGS} に無い`);
+      console.log("  書きかけのまま流すと評価額 0 円の日が積まれるので、書きません");
+    }
     return 0;
   }
 

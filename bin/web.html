@@ -747,9 +747,13 @@ function renderSummary(s) {
   out.push('<header class="head">');
   out.push('<p class="kicker">＊ 鑑識 ＊　' + esc(s.first) + " 〜 " + esc(s.last) + "</p>");
   out.push("<h1>じぶんを しらべる</h1>");
+  // 「手で書いた部屋は一つもない」は、株の台帳（銘柄と株数）を置いた時点で
+  // 嘘になる。持っているかどうかで言い分けて、どちらでも本当のことを言う
   out.push('<p class="sub">' + esc(s.lead) +
-    " <b>本人には聞かない。</b>残った痕跡から起こす —— 手で書いた部屋は一つもなく、" +
-    "ぜんぶログから機械が起こしたもの。" +
+    " <b>本人には聞かない。</b>残った痕跡から起こす —— " +
+    (s.stock
+      ? "手で書いたのは<b>持っている株の銘柄と株数</b>だけで、あとはぜんぶログから機械が起こしたもの。"
+      : "<b>手で書いた部屋は一つもなく</b>、ぜんぶログから機械が起こしたもの。") +
     "ここはまとめで、上の帯から<b>部屋ごとに潜って原文まで</b>読める。</p>");
   out.push('<div class="win status"><div class="st-grid">');
   s.stats.forEach(function (t) {
@@ -1018,6 +1022,11 @@ function renderList(kind, items, extra) {
         '<span class="r-num">' + esc(d.by) + "</span></a>");
     });
     out.push("</div>");
+  } else if (kind === "stock" && !items.length) {
+    // 株だけは「まだ無い」が既定の状態なので、始めかたを出す
+    out.push('<div class="doc"><p>まだ1日も書かれていません。' +
+      '持っているものを <code>拠点/株/保有.md</code> に置くと、' +
+      'ここに確定した終値が積まれます（雛形は <code>bin/stock.ts --init</code>）。</p></div>');
   } else if (kind === "stock") {
     var maxV = Math.max.apply(null, items.map(function (d) { return d.value; }).concat([1]));
     out.push('<div class="rows">');

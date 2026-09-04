@@ -184,7 +184,7 @@ function main(): number {
     ["aibo", common],
     ["posts", common],
     ["work", common],
-    // 株は外から取ってくるので1階。`保有.json` が無ければ自分で諦める
+    // 株は外から取ってくるので1階。`保有.md` が無ければ自分で諦める
     ["stock", common],
     ["entities", common],
     ["profile", common],

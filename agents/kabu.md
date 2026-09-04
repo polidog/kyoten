@@ -42,7 +42,7 @@ K=~/ghq/github.com/polidog/kyoten
 KY=~/Documents/Obsidian/kyoten
 
 "$K/bin/stock.ts" --now                       # いまの値（拠点には書かない）
-cat "$KY/株/保有.json"                          # 何を持っているか
+cat "$KY/株/保有.md"                          # 何を持っているか
 "$K/bin/search.ts" "7203" --room 株 --limit 30   # 値の履歴
 "$K/bin/search.ts" "7203" --room 見立て --limit 30 # 過去に何と言ったか
 find "$KY/株" -name '*.md' | sort              # 全部の日

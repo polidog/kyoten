@@ -565,7 +565,10 @@ export interface StockHead {
 }
 
 export function stockList(): readonly StockHead[] {
-  const paths = listFiles(room("株"), ".md");
+  // `株/保有.md`（手で書く台帳）は日ごとの値ではないので数えない。
+  // 日付の形をしたファイルだけを拾う
+  const paths = listFiles(room("株"), ".md")
+    .filter((abs) => /^\d{4}-\d{2}-\d{2}\.md$/.test(basename(abs)));
   const seen = listFiles(room("見立て"), ".md");
   return cached("stock", [...paths, ...seen], () => {
     const days = new Set(seen.map((abs) => basename(abs).slice(0, -3)));
