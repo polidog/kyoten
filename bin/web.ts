@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /**
- * web — 拠点のまとめをブラウザに出す
+ * web — 拠点をブラウザで読む
  *
  * Obsidian で眺めても、拠点は「日付順に並んだテキスト」でしかない。
- * ここは23年ぶんを**1枚のまとめ**にして返すだけ。潜って読むのは
- * 端末（`browse.ts`）の仕事で、こちらは一覧も検索も持たない。
+ * ここは23年ぶんを1枚のまとめにしたうえで、**潜って原文まで読める**。
+ * 端末（`browse.ts`）と同じものを、同じ読み取り層（`read.ts`）から出す。
  *
  * 原則に沿って:
  *   - 依存を増やさない  `node:http` だけ。npm も build も要らない
@@ -26,6 +26,7 @@ import { fileURLToPath } from "node:url";
 import { KYOTEN, n } from "./util.ts";
 import { parseArgs } from "./cli.ts";
 import * as vault from "./read.ts";
+import { connect, makeSnippet, ROOMS, search } from "./search.ts";
 
 /** 外向きには開かない。拠点には取引先の実名も認証まわりの試行錯誤も入っている */
 const HOST = "127.0.0.1";
@@ -35,9 +36,99 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 
 // ---------------------------------------------------------------- 口
 
+/** 一覧を持っている部屋。ここに無いものは `tree` で置いてあるとおりに歩く */
+function list(room: string): unknown {
+  switch (room) {
+    case "skill":
+      return vault.skillList();
+    case "timeline":
+      return vault.timelineList();
+    case "diary":
+      return vault.diaryList();
+    case "weekly":
+      return vault.weeklyList();
+    case "trend":
+      return vault.trendList();
+    case "entity":
+      return vault.entityList();
+    default:
+      return undefined;
+  }
+}
+
+export interface Hit {
+  readonly room: string;
+  readonly path: string;
+  readonly project: string;
+  readonly date: string;
+  readonly heading: string;
+  readonly line: number;
+  readonly snippet: string;
+}
+
+/**
+ * 拠点を引く。
+ *
+ * 索引は `search.ts` が刻む。ここは読むだけなので、無ければ刻み直さずに
+ * そう言って返す（原則5: 書き込み口を絞る）。
+ */
+function find(u: URL): unknown {
+  const words = (u.searchParams.get("q") ?? "").split(/\s+/).filter(Boolean);
+  if (!words.length) return { words, hits: [], fallback: false, note: "" };
+
+  const room = u.searchParams.get("room") ?? "";
+  const project = u.searchParams.get("project") ?? "";
+  const since = u.searchParams.get("since") ?? "";
+  const limit = Math.min(200, Number.parseInt(u.searchParams.get("limit") ?? "60", 10) || 60);
+
+  let con;
+  try {
+    con = connect();
+  } catch {
+    return { words, hits: [], fallback: false, note: "索引がまだありません（bin/search.ts --rebuild）" };
+  }
+  try {
+    const [rows, fallback] = search(
+      con,
+      words,
+      room && (ROOMS as readonly string[]).includes(room) ? room : undefined,
+      project || undefined,
+      since || null,
+      null,
+      limit,
+    );
+    const hits: Hit[] = rows.map((r) => ({
+      room: r.room,
+      path: r.path,
+      project: r.project,
+      date: r.date,
+      heading: r.heading,
+      line: r.line,
+      snippet: makeSnippet(r.body, words, false, 220),
+    }));
+    return { words, hits, fallback, note: "" };
+  } finally {
+    con.close();
+  }
+}
+
 function api(u: URL): unknown {
-  if (u.pathname === "/api/summary") return vault.summary();
-  return undefined;
+  switch (u.pathname) {
+    case "/api/summary":
+      return vault.summary();
+    case "/api/list":
+      return list(u.searchParams.get("room") ?? "");
+    case "/api/doc":
+      return vault.docAt(u.searchParams.get("path") ?? "") ?? undefined;
+    case "/api/raw":
+      return vault.raw(u.searchParams.get("path") ?? "") ?? undefined;
+    case "/api/tree":
+      return vault.tree(u.searchParams.get("path") ?? "") ?? undefined;
+    case "/api/search":
+      return find(u);
+    default:
+      return undefined;
+  }
 }
 
 function send(res: ServerResponse, code: number, type: string, body: string | Buffer): void {
@@ -109,7 +200,7 @@ function main(): number {
         `  ${s.first} 〜 ${s.last}（${s.span}年）　スキル ${n(s.skills)}　` +
           `週報 ${n(vault.weeklyList().length)}週`,
       );
-      console.error("  潜って読むなら bin/browse.ts");
+      console.error("  端末で読むなら bin/browse.ts");
     }
     if (!args.flags["no-open"]) open(url);
   });

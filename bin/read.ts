@@ -9,8 +9,8 @@
  * 原則3（原文ママ）に合う。パースするのは「並べ替えと絵に要る値」だけ。
  */
 
-import { existsSync, statSync } from "node:fs";
-import { join, normalize, relative } from "node:path";
+import { existsSync, readdirSync, statSync } from "node:fs";
+import { dirname, join, normalize, relative } from "node:path";
 
 import { KYOTEN, readText, splitFrontmatter } from "./util.ts";
 import { listFiles } from "./cli.ts";
@@ -523,15 +523,118 @@ function safeName(s: string): string {
 }
 
 /**
- * 拠点の相対パスから原文を読む。
+ * 拠点の相対パスを絶対パスに直す。
  *
  * 拠点の外は読まない。`..` で外に出ようとしたものは null で落とす
  * （ローカル専用とはいえ、住所を組み立てるのはブラウザなので）。
  */
-export function raw(rel: string): { path: string; text: string } | null {
-  if (!rel || rel.includes("\0")) return null;
+function inside(rel: string): string | null {
+  if (rel.includes("\0")) return null;
   const abs = normalize(join(KYOTEN, rel));
   if (abs !== KYOTEN && !abs.startsWith(KYOTEN + "/")) return null;
-  if (!abs.endsWith(".md") || !existsSync(abs)) return null;
+  return abs;
+}
+
+/** 拠点の相対パスから原文を読む。 */
+export function raw(rel: string): { path: string; text: string } | null {
+  const abs = rel ? inside(rel) : null;
+  if (!abs || !abs.endsWith(".md") || !existsSync(abs)) return null;
   return { path: relative(KYOTEN, abs), text: readText(abs) };
+}
+
+/** 拠点の相対パスから、切ったものを読む。ブラウザが1枚を開くときの口。 */
+export function docAt(rel: string): Doc | null {
+  const abs = rel ? inside(rel) : null;
+  if (!abs || !abs.endsWith(".md") || !existsSync(abs)) return null;
+  return readDoc(abs);
+}
+
+// ---------------------------------------------------------------- 歩く
+
+/**
+ * 部屋の中を1階層ずつ。
+ *
+ * `会話/` `自分/` `投稿/` のように、まとめる関数を持たない部屋がある。
+ * そこは畳まずに、置いてあるとおりに並べて渡す（原則3: 原文ママ）。
+ */
+export interface Entry {
+  readonly kind: "dir" | "doc";
+  /** 見出し（無ければファイル名）。ブラウザに出る名前 */
+  readonly name: string;
+  readonly path: string;
+  /** 添える1行。frontmatter にあるものだけを拾う */
+  readonly note: string;
+  /** 部屋なら、その下にある .md の数 */
+  readonly count: number;
+}
+
+export interface Tree {
+  readonly path: string;
+  /** ひとつ上。拠点の根なら null */
+  readonly up: string | null;
+  readonly dirs: readonly Entry[];
+  readonly docs: readonly Entry[];
+}
+
+/** frontmatter の数。部屋ごとに名前が違うので、ありものを拾う */
+const NOTE_NUM: readonly (readonly [string, string])[] = [
+  ["utterances", "発言"],
+  ["speech", "発言"],
+  ["replies", "応答"],
+  ["tools", "道具"],
+  ["told", "言われたこと"],
+  ["sessions", "会話"],
+  ["commits", "コミット"],
+  ["troubles", "つまずき"],
+];
+
+function noteOf(doc: Doc): string {
+  const f = doc.fields;
+  const when = f.date || (f.started ?? "").slice(0, 10) || f.week || f.year || "";
+  const bits: string[] = [];
+  if (when) bits.push(when);
+  const where = f.project || f.source || f.by || "";
+  if (where) bits.push(where);
+  for (const [key, label] of NOTE_NUM) {
+    const v = num(f[key]);
+    if (v) bits.push(`${label} ${v}`);
+  }
+  return bits.join("　");
+}
+
+export function tree(rel: string): Tree | null {
+  const abs = inside(rel || ".");
+  if (!abs || !existsSync(abs) || !statSync(abs).isDirectory()) return null;
+  const here = relative(KYOTEN, abs);
+  const paths = listFiles(abs, ".md");
+
+  return cached(`tree:${here}`, [abs, ...paths], () => {
+    const dirs: Entry[] = [];
+    const docs: Entry[] = [];
+    for (const name of readdirSync(abs).sort()) {
+      if (name.startsWith(".")) continue;
+      const child = join(abs, name);
+      const path = relative(KYOTEN, child);
+      if (statSync(child).isDirectory()) {
+        dirs.push({
+          kind: "dir",
+          name,
+          path,
+          note: "",
+          count: listFiles(child, ".md").length,
+        });
+        continue;
+      }
+      if (!name.endsWith(".md")) continue;
+      const doc = readDoc(child);
+      docs.push({
+        kind: "doc",
+        name: doc.fields.title || doc.title || name.replace(/\.md$/, ""),
+        path,
+        note: noteOf(doc),
+        count: 0,
+      });
+    }
+    return { path: here, up: here ? dirname(here).replace(/^\.$/, "") : null, dirs, docs };
+  });
 }

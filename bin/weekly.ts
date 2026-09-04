@@ -59,7 +59,34 @@ const STALE_AFTER = 60;
 const STALE_MIN_COMMITS = 10;
 const STALE_SHOWN = 8;
 
-const RE_COMMIT = /^- `([0-9a-f]{4,})` /;
+const RE_COMMIT = /^- `([0-9a-f]{4,})` ([^\n]*)$/;
+
+/**
+ * コミットの件名から PR を読む。**確実な2つの形だけ**を見る。
+ *
+ *     Merge pull request #12 from ptyhard/node-version   マージコミット（1,747）
+ *     リリースフローの変更 (#54)                          squash merge の既定（791）
+ *
+ * `Fix #321` や `#332 の対応` のような**本文中の `#N` は拾わない**。実測すると
+ * 107 件あるが、中身はどれも issue の参照だった（`Fix #N` は GitHub が issue を
+ * 閉じる記法）。混ぜると「マージした PR」が嘘になる。
+ *
+ * そして取れるのは**マージされた PR だけ**。マージせずに閉じた PR は git に
+ * 痕跡が残らないので、拠点からは見えない（見るなら GitHub に聞きに行く
+ * ことになり、それは1階の仕事）。
+ */
+const RE_PR_MERGE = /^Merge pull request #(\d+) from (\S+)/;
+const RE_PR_TAIL = /^(.*?)\s*\(#(\d+)\)\s*$/;
+
+/**
+ * PR の並べかた。**リポジトリごとに畳んでから**出す。
+ *
+ * 平らに番号順で並べると、忙しいリポジトリ1つが枠を食い切る（実測: 105本
+ * 出た週は、上位12本が全部同じリポジトリだった）。週報が言いたいのは
+ * 「その週に何が起きたか」なので、どこで何本かが先に見えるほうがいい。
+ */
+const PR_PROJECTS = 6;
+const PR_TITLES = 3;
 const RE_FILE = /^- `([^`]+)`/;
 const RE_HEAD2 = /^## ([^\n]+)$/;
 const RE_HEAD3 = /^### ([^\n]+)$/;
@@ -92,6 +119,8 @@ export function mostCommon(counter: Map<string, number>, limit: number): [string
 
 export class Day {
   commits = 0;
+  /** `<project>#<番号>` → 件名。同じ PR を2回数えないための鍵 */
+  readonly prs = new Map<string, string>();
   readonly projects = new Map<string, number>();
   readonly exts = new Map<string, number>();
   troubles = 0;
@@ -101,6 +130,20 @@ export class Day {
   utterances = 0;
   sessions = 0;
   readonly titles: string[] = [];
+}
+
+/** コミットの件名から `[<project>#<番号>, 件名]` を読む。PR でなければ null。 */
+function readPr(project: string, subject: string): [string, string] | null {
+  if (!project) return null;
+  const asMerge = RE_PR_MERGE.exec(subject);
+  if (asMerge) {
+    // マージコミットは PR の件名を持たない。ブランチ名で代える
+    const branch = asMerge[2];
+    return [`${project}#${asMerge[1]}`, branch.slice(branch.lastIndexOf("/") + 1)];
+  }
+  const asTail = RE_PR_TAIL.exec(subject);
+  if (asTail && asTail[1].trim()) return [`${project}#${asTail[2]}`, asTail[1].trim()];
+  return null;
 }
 
 function extName(path: string): string {
@@ -144,9 +187,14 @@ export function scan(days: Map<string, Day>): void {
           continue;
         }
 
-        if (section === "つくった" && RE_COMMIT.test(line)) {
+        const gotCommit = section === "つくった" ? RE_COMMIT.exec(line) : null;
+        if (gotCommit) {
           day.commits += 1;
           if (project) bump(day.projects, project);
+          const pr = readPr(project, gotCommit[2].trim());
+          // 同じ PR がマージコミットと squash の両方で出ることがある。
+          // 件名のあるほうを残す（マージコミットはブランチ名しか持たない）
+          if (pr && (!day.prs.has(pr[0]) || !day.prs.get(pr[0]))) day.prs.set(pr[0], pr[1]);
         } else if (section === "さわった") {
           const got = RE_FILE.exec(line);
           if (got) {
@@ -240,6 +288,7 @@ export class Week {
   utterances = 0;
   sessions = 0;
   readonly titles: string[] = [];
+  readonly prs = new Map<string, string>();
   daysWorked = 0;
 
   constructor(key: string, start: string) {
@@ -259,6 +308,9 @@ export class Week {
     this.utterances += day.utterances;
     this.sessions += day.sessions;
     this.titles.push(...day.titles);
+    for (const [key, title] of day.prs) {
+      if (!this.prs.has(key) || !this.prs.get(key)) this.prs.set(key, title);
+    }
     if (day.commits) this.daysWorked += 1;
   }
 
@@ -283,6 +335,12 @@ export function fold(days: Map<string, Day>): Week[] {
 }
 
 // ---------------------------------------------------------------- 告げる
+
+/** `<project>#<番号>` を割る。 */
+function splitPr(key: string): [string, number] {
+  const at = key.lastIndexOf("#");
+  return [key.slice(0, at), Number.parseInt(key.slice(at + 1), 10) || 0];
+}
 
 function diff(now: number, before: number | null): string {
   if (before === null) return "";
@@ -309,6 +367,7 @@ function render(
     from: week.start,
     to: week.end,
     commits: week.commits,
+    prs: week.prs.size,
   });
 
   const body: string[] = [`# ${week.key} の週報`, `${week.start} 〜 ${week.end}`];
@@ -317,6 +376,10 @@ function render(
   if (week.commits) {
     lines.push(`- コミット ${n(week.commits)}${diff(week.commits, before?.commits ?? null)}` +
       `　手を動かした日 ${week.daysWorked}`);
+  }
+  if (week.prs.size) {
+    lines.push(`- マージした PR ${n(week.prs.size)}` +
+      diff(week.prs.size, before ? before.prs.size : null));
   }
   if (week.articles) {
     lines.push(`- 記事 ${n(week.articles)}${diff(week.articles, before?.articles ?? null)}`);
@@ -344,6 +407,38 @@ function render(
       rows.push(`- ${name} ${n(count)}${mark}`);
     }
     body.push("## よくいた場所\n\n" + rows.join("\n"));
+  }
+
+  if (week.prs.size) {
+    // リポジトリごとに畳む。番号は数として比べる（#9 が #10 の前に来るように）
+    const byProject = new Map<string, [number, string][]>();
+    for (const [key, title] of week.prs) {
+      const [project, num] = splitPr(key);
+      const list = byProject.get(project);
+      if (list) list.push([num, title]);
+      else byProject.set(project, [[num, title]]);
+    }
+
+    // 多い順、同数は名前順（`mostCommon` と同じ並べかた）
+    const order = [...byProject.entries()]
+      .sort((a, b) => b[1].length - a[1].length || (a[0] < b[0] ? -1 : 1));
+
+    const lines: string[] = [];
+    for (const [project, prs] of order.slice(0, PR_PROJECTS)) {
+      lines.push(`- ${project} ${n(prs.length)}`);
+      prs.sort((a, b) => a[0] - b[0]);
+      for (const [num, title] of prs.slice(0, PR_TITLES)) {
+        lines.push(`  - #${num}${title ? ` ${title}` : ""}`);
+      }
+      if (prs.length > PR_TITLES) {
+        lines.push(`  - … ほか ${n(prs.length - PR_TITLES)} 本`);
+      }
+    }
+    if (order.length > PR_PROJECTS) {
+      const rest = order.slice(PR_PROJECTS).reduce((a, x) => a + x[1].length, 0);
+      lines.push(`- … ほか ${n(order.length - PR_PROJECTS)} リポジトリで ${n(rest)} 本`);
+    }
+    body.push("## マージした PR\n\n" + lines.join("\n"));
   }
 
   if (week.exts.size) {

@@ -1,4 +1,4 @@
-<title>じぶんを しらべる</title>
+<title>きょてん</title>
 <link rel="stylesheet" referrerpolicy="no-referrer"
   href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap">
 <style>
@@ -44,15 +44,24 @@ code,.mono{font-family:"JetBrains Mono","Zen Kaku Gothic New",ui-monospace,monos
 a{color:var(--blue)}
 b{font-weight:500}
 
-.win{
-  background:var(--win-bg); color:var(--win-ink); border:3px solid #fff; padding:22px 26px;
-  box-shadow:0 0 0 3px var(--win-bg),0 0 0 5px rgba(255,255,255,.22); margin:5px;
+/* ---- うわばり（部屋を行き来する） */
+.bar{position:sticky;top:0;z-index:20;background:var(--surface);border-bottom:2px solid var(--line)}
+.bar-in{max-width:940px;margin:0 auto;padding:7px 24px;display:flex;gap:4px;align-items:center;flex-wrap:wrap}
+.bar .home{font-family:"DotGothic16",monospace;font-size:14px;color:var(--ink);text-decoration:none;margin-right:10px;letter-spacing:.06em}
+.bar a.nav{font-family:"DotGothic16",monospace;font-size:13px;color:var(--ink-soft);text-decoration:none;padding:2px 9px;border:1px solid transparent}
+.bar a.nav:hover{border-color:var(--line);background:var(--sunk)}
+.bar a.nav.on{color:var(--blue);border-color:var(--blue);background:var(--blue-wash)}
+.bar form{margin-left:auto;display:flex}
+.bar input{
+  font-family:"DotGothic16",monospace;font-size:13px;background:var(--sunk);
+  border:2px solid var(--line);color:var(--ink);padding:3px 10px;width:min(40vw,250px);
 }
+.bar input:focus{outline:none;border-color:var(--blue)}
 
-.head{padding:58px 0 38px}
+.head{padding:44px 0 34px}
 .kicker{font-family:"DotGothic16",monospace;font-size:12px;letter-spacing:.14em;color:var(--blue);margin:0 0 12px}
-.head h1{font-size:clamp(30px,5.5vw,48px);line-height:1.35;letter-spacing:.02em}
-.head .sub{color:var(--ink-soft);margin:18px 0 0;max-width:62ch}
+.head h1{font-size:clamp(26px,5vw,44px);line-height:1.35;letter-spacing:.02em}
+.head .sub{color:var(--ink-soft);margin:16px 0 0;max-width:62ch}
 
 .status{margin-top:30px}
 .st-grid{
@@ -62,9 +71,14 @@ b{font-weight:500}
 .st-grid div{display:flex;justify-content:space-between;gap:12px;border-bottom:1px dotted rgba(255,255,255,.22);padding:3px 0}
 .st-grid span{color:#A8B2D8}
 .st-grid b{font-weight:400;color:#fff;font-variant-numeric:tabular-nums;white-space:nowrap}
+.win{
+  background:var(--win-bg); color:var(--win-ink); border:3px solid #fff; padding:22px 26px;
+  box-shadow:0 0 0 3px var(--win-bg),0 0 0 5px rgba(255,255,255,.22); margin:5px;
+}
 
-section{padding:52px 0;border-top:2px solid var(--line)}
-.sec-head{margin-bottom:28px}
+section{padding:44px 0;border-top:2px solid var(--line)}
+section:first-child{border-top:0}
+.sec-head{margin-bottom:24px}
 .sec-head .kicker{color:var(--muted)}
 .sec-head h2{font-size:25px;letter-spacing:.03em}
 .sec-head p{color:var(--ink-soft);margin:12px 0 0;max-width:64ch}
@@ -84,10 +98,12 @@ section{padding:52px 0;border-top:2px solid var(--line)}
 .o-sec li{font-size:13.5px;color:var(--ink-soft);line-height:1.75}
 .o-sec p{font-size:13.5px;color:var(--ink-soft);margin:0 0 16px}
 .o-sec li b,.o-sec p b{color:var(--ink)}
+.more{font-family:"DotGothic16",monospace;font-size:12.5px;margin-top:14px}
 
 /* スキル */
 .skills{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:12px}
-.tk{background:var(--surface);border:2px solid var(--line);box-shadow:var(--shadow);padding:14px 16px}
+.tk{background:var(--surface);border:2px solid var(--line);box-shadow:var(--shadow);padding:14px 16px;text-decoration:none;color:var(--ink);display:block}
+a.tk:hover{border-color:var(--blue)}
 .tk .tk-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
 .tk .tk-name{font-family:"DotGothic16",monospace;font-size:16px;letter-spacing:.02em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tk .tk-star{color:var(--gold);font-size:12px;letter-spacing:.08em;flex:none}
@@ -97,12 +113,13 @@ section{padding:52px 0;border-top:2px solid var(--line)}
 
 /* ならんだ棒 */
 .bars{background:var(--surface);border:2px solid var(--line);box-shadow:var(--shadow);padding:16px 18px}
-.bar{display:grid;grid-template-columns:120px 1fr auto;gap:14px;align-items:center;padding:2px 0}
-.bar .b-name{font-family:"DotGothic16",monospace;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.bar .b-track{height:12px;background:var(--sunk);border:1px solid var(--line);position:relative}
-.bar .b-fill{position:absolute;inset:0 auto 0 0;background:var(--blue)}
-.bar .b-fill.gold{background:var(--gold)}
-.bar .b-num{font-family:"DotGothic16",monospace;font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums;min-width:5.5em;text-align:right}
+.bar-row{display:grid;grid-template-columns:120px 1fr auto;gap:14px;align-items:center;padding:2px 0;text-decoration:none;color:var(--ink)}
+a.bar-row:hover .b-name{color:var(--blue)}
+.bar-row .b-name{font-family:"DotGothic16",monospace;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar-row .b-track{height:12px;background:var(--sunk);border:1px solid var(--line);position:relative}
+.bar-row .b-fill{position:absolute;inset:0 auto 0 0;background:var(--blue)}
+.bar-row .b-fill.gold{background:var(--gold)}
+.bar-row .b-num{font-family:"DotGothic16",monospace;font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums;min-width:5.5em;text-align:right}
 .two{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:14px}
 .two h3{font-size:15px;margin-bottom:10px;letter-spacing:.03em}
 .two h3::before{content:"▶ ";color:var(--blue);font-size:11px;vertical-align:2px}
@@ -113,6 +130,7 @@ table{border-collapse:collapse;width:100%;min-width:620px;font-size:13.5px}
 th,td{text-align:left;padding:8px 16px;border-bottom:1px solid var(--line-soft);vertical-align:middle}
 thead th{font-family:"DotGothic16",monospace;font-size:13px;letter-spacing:.06em;color:var(--muted);background:var(--sunk);border-bottom:2px solid var(--line)}
 tbody tr:last-child td{border-bottom:0}
+tbody tr:hover td{background:var(--sunk)}
 td.year{font-family:"DotGothic16",monospace;font-size:15px;color:var(--blue);font-variant-numeric:tabular-nums;white-space:nowrap}
 td.num{font-family:"DotGothic16",monospace;font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right;width:1%}
 td.graph{width:38%}
@@ -123,15 +141,89 @@ td.main{color:var(--ink-soft);font-size:12.5px}
 
 /* いる ばしょ */
 .basho{display:grid;grid-template-columns:repeat(auto-fit,minmax(255px,1fr));gap:12px}
-.bs{background:var(--surface);border:2px solid var(--line);box-shadow:var(--shadow);padding:14px 16px;border-left:3px solid var(--blue)}
+.bs{background:var(--surface);border:2px solid var(--line);box-shadow:var(--shadow);padding:14px 16px;border-left:3px solid var(--blue);text-decoration:none;color:var(--ink);display:block}
+a.bs:hover{border-color:var(--blue)}
 .bs .bs-name{font-family:"DotGothic16",monospace;font-size:14.5px;letter-spacing:.02em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bs .bs-when{font-family:"DotGothic16",monospace;font-size:12px;color:var(--muted);margin-top:3px;font-variant-numeric:tabular-nums}
 .bs .bs-num{font-size:12px;color:var(--ink-soft);font-variant-numeric:tabular-nums}
 
-.foot{padding:34px 0 60px;color:var(--muted);font-size:12.5px}
+/* ならんだ行（一覧・部屋の中） */
+.rows{background:var(--surface);border:2px solid var(--line);box-shadow:var(--shadow)}
+.row{display:flex;gap:14px;align-items:baseline;padding:6px 16px;border-bottom:1px solid var(--line-soft);text-decoration:none;color:var(--ink)}
+.row:last-child{border-bottom:0}
+.row:hover{background:var(--sunk)}
+.row .r-key{font-family:"DotGothic16",monospace;font-size:13.5px;color:var(--blue);white-space:nowrap;font-variant-numeric:tabular-nums}
+.row .r-body{flex:1;font-size:13.5px;color:var(--ink-soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .r-num{font-family:"DotGothic16",monospace;font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.row .r-track{width:120px;height:9px;background:var(--sunk);border:1px solid var(--line);position:relative;flex:none}
+.row .r-track i{position:absolute;inset:0 auto 0 0;background:var(--blue)}
+.dirs{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:18px}
+.dir{background:var(--surface);border:2px solid var(--line);box-shadow:var(--shadow);padding:10px 14px;text-decoration:none;color:var(--ink)}
+.dir:hover{border-color:var(--blue)}
+.dir .d-name{font-family:"DotGothic16",monospace;font-size:14px}
+.dir .d-num{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+
+/* 1枚を読む */
+.crumb{font-family:"DotGothic16",monospace;font-size:12.5px;color:var(--muted);margin-bottom:10px;word-break:break-all}
+.crumb a{text-decoration:none}
+.crumb a:hover{text-decoration:underline}
+.fm{display:flex;flex-wrap:wrap;gap:5px;margin:12px 0 0}
+.fm span{font-family:"DotGothic16",monospace;font-size:11.5px;background:var(--sunk);border:1px solid var(--line);color:var(--ink-soft);padding:0 8px}
+.doc{background:var(--surface);border:2px solid var(--line);box-shadow:var(--shadow);padding:24px 30px;overflow-wrap:anywhere}
+.doc h3.md-h{font-size:18px;color:var(--blue);margin:26px 0 8px;letter-spacing:.03em}
+.doc h4.md-h{font-size:15px;color:var(--gold);margin:20px 0 6px;letter-spacing:.03em}
+.doc h5.md-h,.doc h6.md-h{font-size:14px;color:var(--ink-soft);margin:16px 0 4px}
+.doc>*:first-child{margin-top:0}
+.doc p{margin:0 0 1.05em}
+.doc ul,.doc ol{margin:0 0 1.05em;padding-left:1.4em}
+.doc li{margin:2px 0}
+.doc li.lv1{margin-left:1.4em}
+.doc li.lv2{margin-left:2.8em}
+.doc li.lv3{margin-left:4.2em}
+.doc blockquote{margin:0 0 1.05em;padding:4px 0 4px 16px;border-left:3px solid var(--line);color:var(--ink-soft)}
+.doc hr{border:0;border-top:1px solid var(--line);margin:22px 0}
+.doc pre.code{background:var(--sunk);border:1px solid var(--line);padding:12px 14px;overflow-x:auto;margin:0 0 1.05em}
+.doc pre.code code{font-size:12.5px;line-height:1.7;white-space:pre}
+.doc .tbl-scroll{margin:0 0 1.05em}
+.doc table{min-width:0}
+.raw{background:var(--sunk);border:2px solid var(--line);padding:16px 18px;overflow-x:auto}
+.raw pre{margin:0;font-family:"JetBrains Mono",ui-monospace,monospace;font-size:12.5px;line-height:1.75;white-space:pre-wrap;word-break:break-all}
+.tools{display:flex;gap:8px;margin:14px 0 0;flex-wrap:wrap}
+.btn{
+  font-family:"DotGothic16",monospace;font-size:12.5px;background:var(--surface);
+  border:2px solid var(--line);box-shadow:var(--shadow);color:var(--ink-soft);
+  padding:2px 12px;cursor:pointer;text-decoration:none;
+}
+.btn:hover{border-color:var(--blue);color:var(--blue)}
+.btn.on{border-color:var(--blue);color:var(--blue);background:var(--blue-wash)}
+
+/* さがす */
+.chips{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:18px}
+.hit{display:block;background:var(--surface);border:2px solid var(--line);box-shadow:var(--shadow);padding:12px 16px;margin-bottom:9px;text-decoration:none;color:var(--ink)}
+.hit:hover{border-color:var(--blue)}
+.hit .h-where{font-family:"DotGothic16",monospace;font-size:12px;color:var(--blue);letter-spacing:.03em}
+.hit .h-head{font-size:14px;margin-top:1px}
+.hit .h-snip{font-size:13px;color:var(--ink-soft);margin-top:4px;line-height:1.75}
+mark{background:var(--gold-wash);color:var(--ink);border-bottom:1px solid var(--gold)}
+
+.foot{padding:30px 0 60px;color:var(--muted);font-size:12.5px}
 .foot code{color:var(--ink-soft)}
 .err{color:var(--hp)}
+.note{color:var(--muted);font-size:12.5px;margin:0 0 16px}
 </style>
+
+<nav class="bar"><div class="bar-in">
+  <a class="home" href="#/">＊ きょてん ＊</a>
+  <a class="nav" href="#/" data-at="#/">まとめ</a>
+  <a class="nav" href="#/list/diary">日記</a>
+  <a class="nav" href="#/list/weekly">週報</a>
+  <a class="nav" href="#/list/trend">推移</a>
+  <a class="nav" href="#/list/skill">スキル</a>
+  <a class="nav" href="#/list/timeline">年表</a>
+  <a class="nav" href="#/list/entity">事典</a>
+  <a class="nav" href="#/tree/">部屋</a>
+  <form id="find"><input id="q" type="search" placeholder="さがす（/ で飛ぶ）" autocomplete="off"></form>
+</div></nav>
 
 <div class="wrap" id="app">
   <header class="head"><p class="kicker">＊ きょてん ＊</p><h1>よみこみ中…</h1></header>
@@ -140,20 +232,47 @@ td.main{color:var(--ink-soft);font-size:12.5px}
 <script>
 "use strict";
 
+// ---------------------------------------------------------------- 字にする
+
 function esc(s) {
   return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
     return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
   });
 }
 function num(v) { return (v || 0).toLocaleString("en-US"); }
+function u(s) { return encodeURIComponent(String(s == null ? "" : s)); }
+function escRe(s) { return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
+/** esc() を戻す。行き先を組むときだけ要る（描くのは escape したまま） */
+function unesc(s) {
+  return String(s).replace(/&(amp|lt|gt|quot|#39);/g, function (m, k) {
+    return { amp: "&", lt: "<", gt: ">", quot: '"', "#39": "'" }[k];
+  });
+}
+/** 住所は decode しすぎない。素の日本語が来ても落ちないように */
+function unurl(s) {
+  try { return decodeURIComponent(s); } catch (e) { return s; }
+}
 
-/** 拠点の中身は必ずここを通す。会話原文には HTML も `<script>` も入っている */
+/** 拠点の中身は必ずここを通す。会話原文には HTML も script も入っている */
+var RE_INLINE = /`([^`]+)`|\*\*([^*]+)\*\*|\[\[([^\]|]+)(?:\|[^\]]*)?\]\]|\[([^\]]+)\]\((https?:[^)\s]+)\)|(https?:\/\/[^\s<)]+)/g;
+
 function inline(text) {
-  var html = esc(text);
-  html = html.replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>");
-  html = html.replace(/`([^`]+)`/g, '<code class="mono">$1</code>');
-  html = html.replace(/(https?:\/\/[^\s<)]+)/g, '<a href="$1" target="_blank" rel="noreferrer">$1</a>');
-  return html;
+  // 印を入れてからエスケープすると印まで消える（落とし穴35）。先に escape する
+  return esc(text).replace(RE_INLINE, function (m, code, bold, wiki, label, href, bare) {
+    if (code != null) return '<code class="mono">' + code + "</code>";
+    if (bold != null) return "<b>" + bold + "</b>";
+    if (wiki != null) return '<a href="#/search/' + u(unesc(wiki)) + '">' + wiki + "</a>";
+    if (label != null) return '<a href="' + href + '" target="_blank" rel="noreferrer">' + label + "</a>";
+    return '<a href="' + bare + '" target="_blank" rel="noreferrer">' + bare + "</a>";
+  });
+}
+
+/** 検索語を光らせる。エスケープ済みの字に当てる */
+function light(escaped, words) {
+  if (!words || !words.length) return escaped;
+  var pat = new RegExp(words.slice().sort(function (a, b) { return b.length - a.length; })
+    .map(function (w) { return escRe(esc(w)); }).join("|"), "gi");
+  return escaped.replace(pat, function (m) { return "<mark>" + m + "</mark>"; });
 }
 
 /** 見出しの無い文書（日記）。空行で段落に割る */
@@ -185,13 +304,105 @@ function lines(rows) {
   return out.join("");
 }
 
+// ---------------------------------------------------------------- 拠点の書式
+
+var RE_BLOCK = /^\s*(```|\||#{1,6}\s|>|[-*]\s|\d+\.\s|-{3,}\s*$)/;
+
+function mdTable(rows) {
+  var cells = rows.map(function (r) {
+    return r.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map(function (c) { return c.trim(); });
+  });
+  var head = null;
+  if (cells.length > 1 && cells[1].every(function (c) { return /^:?-{2,}:?$/.test(c); })) {
+    head = cells.shift();
+    cells.shift();
+  }
+  var out = ['<div class="tbl-scroll"><table>'];
+  if (head) {
+    out.push("<thead><tr>" + head.map(function (c) { return "<th>" + inline(c) + "</th>"; }).join("") + "</tr></thead>");
+  }
+  out.push("<tbody>" + cells.map(function (row) {
+    return "<tr>" + row.map(function (c) { return "<td>" + inline(c) + "</td>"; }).join("") + "</tr>";
+  }).join("") + "</tbody></table></div>");
+  return out.join("");
+}
+
+/**
+ * 拠点にある書式だけを描く。凝った Markdown は書かれていない
+ * （書いているのは道具で、人間ではない）。
+ */
+function md(text) {
+  var src = String(text || "").replace(/\r/g, "").split("\n");
+  var out = [];
+  var kind = null; // 開いている箇条書き
+  var i = 0;
+
+  function close() { if (kind) { out.push(kind === "ul" ? "</ul>" : "</ol>"); kind = null; } }
+  function open(want) { if (kind !== want) { close(); out.push(want === "ul" ? "<ul>" : "<ol>"); kind = want; } }
+  function depth(s) { return Math.min(3, Math.floor((/^\s*/.exec(s)[0].replace(/\t/g, "    ")).length / 2)); }
+
+  while (i < src.length) {
+    var line = src[i];
+
+    if (/^\s*```/.test(line)) {
+      close();
+      var buf = [];
+      i++;
+      while (i < src.length && !/^\s*```/.test(src[i])) { buf.push(src[i]); i++; }
+      i++;
+      out.push('<pre class="code"><code>' + esc(buf.join("\n")) + "</code></pre>");
+      continue;
+    }
+    if (/^\s*\|/.test(line)) {
+      close();
+      var tbl = [];
+      while (i < src.length && /^\s*\|/.test(src[i])) { tbl.push(src[i]); i++; }
+      out.push(mdTable(tbl));
+      continue;
+    }
+    var h = /^(#{1,6})\s+(.*)$/.exec(line);
+    if (h) {
+      close();
+      var lv = Math.min(6, h[1].length + 2);
+      out.push("<h" + lv + ' class="md-h">' + inline(h[2]) + "</h" + lv + ">");
+      i++;
+      continue;
+    }
+    if (/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) { close(); out.push("<hr>"); i++; continue; }
+    if (/^\s*>/.test(line)) {
+      close();
+      var quote = [];
+      while (i < src.length && /^\s*>/.test(src[i])) { quote.push(src[i].replace(/^\s*>\s?/, "")); i++; }
+      out.push("<blockquote>" + inline(quote.join(" ")) + "</blockquote>");
+      continue;
+    }
+    var li = /^(\s*)[-*]\s+(.*)$/.exec(line);
+    if (li) { open("ul"); out.push('<li class="lv' + depth(line) + '">' + inline(li[2]) + "</li>"); i++; continue; }
+    var oli = /^(\s*)\d+\.\s+(.*)$/.exec(line);
+    if (oli) { open("ol"); out.push('<li class="lv' + depth(line) + '">' + inline(oli[2]) + "</li>"); i++; continue; }
+    if (!line.trim()) { close(); i++; continue; }
+
+    close();
+    var para = [line];
+    i++;
+    while (i < src.length && src[i].trim() && !RE_BLOCK.test(src[i])) { para.push(src[i]); i++; }
+    out.push("<p>" + inline(para.join(" ")) + "</p>");
+  }
+  close();
+  return out.join("");
+}
+
+// ---------------------------------------------------------------- 部品
+
 function bars(items, gold) {
   var max = Math.max.apply(null, items.map(function (i) { return i.value; }).concat([1]));
   return '<div class="bars">' + items.map(function (i) {
-    return '<div class="bar"><span class="b-name">' + esc(i.name) + "</span>" +
+    var open = i.href ? '<a class="bar-row" href="' + esc(i.href) + '">' : '<div class="bar-row">';
+    return open + '<span class="b-name">' + esc(i.name) + "</span>" +
       '<span class="b-track"><span class="b-fill' + (gold ? " gold" : "") +
       '" style="width:' + Math.max(1.5, (i.value / max) * 100).toFixed(2) + '%"></span></span>' +
-      '<span class="b-num">' + esc(i.label != null ? i.label : num(i.value)) + "</span></div>";
+      '<span class="b-num">' + esc(i.label != null ? i.label : num(i.value)) + "</span>" +
+      (i.href ? "</a>" : "</div>");
   }).join("") + "</div>";
 }
 
@@ -200,16 +411,51 @@ function secHead(kicker, title, note) {
     "<h2>" + esc(title) + "</h2>" + (note ? "<p>" + note + "</p>" : "") + "</div>";
 }
 
-function render(s) {
+function docHref(path) { return "#/doc/" + u(path); }
+function treeHref(path) { return "#/tree/" + u(path || ""); }
+
+/** 拠点の相対パスを、ひとつずつ辿れる形に */
+function crumbs(path, isDir) {
+  var parts = String(path || "").split("/").filter(Boolean);
+  var out = ['<a href="' + treeHref("") + '">拠点</a>'];
+  var at = "";
+  parts.forEach(function (p, idx) {
+    at = at ? at + "/" + p : p;
+    var last = idx === parts.length - 1;
+    out.push(last && !isDir ? esc(p) : '<a href="' + treeHref(at) + '">' + esc(p) + "</a>");
+  });
+  return '<div class="crumb">' + out.join(" ▸ ") + "</div>";
+}
+
+async function get(url) {
+  var res = await fetch(url);
+  var data = null;
+  try { data = await res.json(); } catch (e) { data = null; }
+  if (!res.ok) throw new Error(data && data.error ? data.error : res.statusText);
+  return data;
+}
+
+function show(html) {
+  document.getElementById("app").innerHTML = html;
+  window.scrollTo(0, 0);
+}
+
+function fail(title, message) {
+  show('<header class="head"><p class="kicker">＊ きょてん ＊</p><h1>' + esc(title) + "</h1>" +
+    '<p class="sub err">' + esc(message) + "</p></header>");
+}
+
+// ---------------------------------------------------------------- まとめ
+
+function renderSummary(s) {
   var out = [];
 
-  // ---- かんむり
   out.push('<header class="head">');
   out.push('<p class="kicker">＊ きょてん ＊　' + esc(s.first) + " 〜 " + esc(s.last) + "</p>");
   out.push("<h1>じぶんを しらべる</h1>");
   out.push('<p class="sub">' + esc(s.lead) +
     " 手で書いた部屋は一つもない —— ぜんぶログから機械が起こしたもの。" +
-    "ここに出るのは<b>まとめ</b>だけで、潜って読むのは端末の仕事。</p>");
+    "ここはまとめで、上の帯から<b>部屋ごとに潜って原文まで</b>読める。</p>");
   out.push('<div class="win status"><div class="st-grid">');
   s.stats.forEach(function (t) {
     out.push("<div><span>" + esc(t.label) + "</span><b>" + esc(t.value) + "</b></div>");
@@ -219,7 +465,6 @@ function render(s) {
   out.push("<div><span>ぜんぶで</span><b>" + s.span + "年</b></div>");
   out.push("</div></div></header>");
 
-  // ---- アイボの日記
   if (s.diary) {
     out.push("<section>");
     out.push(secHead("アイボの日記", esc(s.diaryDate) + " のこと",
@@ -227,10 +472,10 @@ function render(s) {
       "同じ日を二度書くと違うものになる。だから一度書いたら書き直さない。" +
       "ぜんぶで <b>" + num(s.diaries) + "</b> 日ぶん。"));
     out.push('<div class="diary">' + paragraphs(s.diary.body) + "</div>");
+    out.push('<p class="more">▶ <a href="#/list/diary">日記をぜんぶ読む</a></p>');
     out.push("</section>");
   }
 
-  // ---- こんしゅうの 週報
   if (s.weekly) {
     var k = s.weekly;
     out.push("<section>");
@@ -243,10 +488,11 @@ function render(s) {
     k.sections.forEach(function (sec) {
       out.push('<div class="o-sec"><h3>' + esc(sec.head) + "</h3>" + lines(sec.lines) + "</div>");
     });
-    out.push("</div></div></section>");
+    out.push("</div></div>");
+    out.push('<p class="more">▶ <a href="#/list/weekly">' + num(s.weeks) + "週ぶんの週報</a></p>");
+    out.push("</section>");
   }
 
-  // ---- 推移
   if (s.trend) {
     var w = s.trend;
     out.push("<section>");
@@ -260,10 +506,11 @@ function render(s) {
     w.sections.forEach(function (sec) {
       out.push('<div class="o-sec"><h3>' + esc(sec.head) + "</h3>" + lines(sec.lines) + "</div>");
     });
-    out.push("</div></div></section>");
+    out.push("</div></div>");
+    out.push('<p class="more">▶ <a href="#/list/trend">積み上がりを追う</a></p>');
+    out.push("</section>");
   }
 
-  // ---- スキル
   var maxYears = Math.max.apply(null, s.skillTop.map(function (t) { return t.years; }).concat([1]));
   out.push("<section>");
   out.push(secHead("スキル", "くりかえし あらわれる かた",
@@ -271,28 +518,28 @@ function render(s) {
     "ぜんぶで <b>" + num(s.skills) + "</b> 枚あるうちの上から12枚。"));
   out.push('<div class="skills">');
   s.skillTop.forEach(function (t) {
-    var star = Math.max(1, Math.round((t.years / maxYears) * 5));
-    out.push('<div class="tk"><div class="tk-top">' +
-      '<span class="tk-name">' + esc(t.name) + "</span>" +
-      '<span class="tk-star">' + "★".repeat(star) + "<i>" + "★".repeat(5 - star) + "</i></span></div>" +
-      '<div class="tk-when">' + esc(t.first) + " 〜 " + esc(t.last) + "　" + t.years + "年</div>" +
-      '<div class="tk-num">記事 ' + num(t.articles) + "　ファイル " + num(t.files) + "</div></div>");
+    out.push(skillCard(t, maxYears));
   });
-  out.push("</div></section>");
+  out.push("</div>");
+  out.push('<p class="more">▶ <a href="#/list/skill">' + num(s.skills) + "枚ぜんぶ</a></p>");
+  out.push("</section>");
 
-  // ---- いま と ずっと
   out.push("<section>");
   out.push(secHead("いま と ずっと", "手が うごいて いるもの",
     "左はここ3か月の実測、右は付き合いの長さ。<b>いま</b>と<b>ずっと</b>がずれているほど、最近なにか変わった。"));
   out.push('<div class="two"><div><h3>' + esc(s.nowHead) + "</h3>" +
-    bars(s.now.map(function (i) { return { name: i.name, value: i.count }; })) + "</div>");
+    bars(s.now.map(function (i) {
+      return { name: i.name, value: i.count, href: docHref("プロフィール/スキル/" + i.name + ".md") };
+    })) + "</div>");
   out.push("<div><h3>長くいっしょにいるもの</h3>" +
     bars(s.longTerm.map(function (x) {
-      return { name: x.name, value: x.years, label: x.years + "年" };
+      return {
+        name: x.name, value: x.years, label: x.years + "年",
+        href: docHref("プロフィール/スキル/" + x.name + ".md"),
+      };
     }), true) + "</div></div>");
   out.push("</section>");
 
-  // ---- あゆみ
   var maxC = Math.max.apply(null, s.years.map(function (a) { return a.commits; }).concat([1]));
   var maxA = Math.max.apply(null, s.years.map(function (a) { return a.articles; }).concat([1]));
   out.push("<section>");
@@ -302,7 +549,8 @@ function render(s) {
     "<th>とし</th><th>コミット</th><th></th><th>きじ</th><th></th><th>おもに</th>" +
     "</tr></thead><tbody>");
   s.years.forEach(function (a) {
-    out.push("<tr><td class=\"year\">" + a.year + "</td>" +
+    out.push('<tr onclick="location.hash=\'#/doc/' + u("プロフィール/年表/" + a.year + ".md") + '\'" style="cursor:pointer">' +
+      '<td class="year">' + a.year + "</td>" +
       '<td class="num">' + (a.commits ? num(a.commits) : "") + "</td>" +
       '<td class="graph"><span class="mini"><i style="width:' +
       ((a.commits / maxC) * 100).toFixed(2) + '%"></i></span></td>' +
@@ -313,36 +561,295 @@ function render(s) {
   });
   out.push("</tbody></table></div></section>");
 
-  // ---- いる ばしょ
   out.push("<section>");
   out.push(secHead("いる ばしょ", "さいきん 手を いれたところ",
     "事典（長期記憶）が畳んだプロジェクト台帳から、新しく触った順に8つ。"));
   out.push('<div class="basho">');
-  s.places.forEach(function (p) {
-    out.push('<div class="bs"><div class="bs-name">' + esc(p.name) + "</div>" +
-      '<div class="bs-when">' + esc(p.first) + " 〜 " + esc(p.last) + "</div>" +
-      '<div class="bs-num">会話 ' + num(p.sessions) + "　コミット " + num(p.commits) + "</div></div>");
-  });
-  out.push("</div></section>");
+  s.places.forEach(function (p) { out.push(placeCard(p)); });
+  out.push("</div>");
+  out.push('<p class="more">▶ <a href="#/list/entity">台帳ぜんぶ</a></p>');
+  out.push("</section>");
 
-  out.push('<p class="foot">▶ ここに出ているのはまとめだけ。71枚のスキル、' + num(s.weeks) +
-    "週の週報、23年ぶんの年表を潜って読むなら <code>bin/browse.ts</code>、" +
-    "探すなら <code>bin/search.ts</code>。拠点は private なので、ここは 127.0.0.1 にしか出ない。</p>");
+  out.push('<p class="foot">▶ 拠点は private なので、ここは 127.0.0.1 にしか出ない。' +
+    "端末で歩くなら <code>bin/browse.ts</code>、刻み直すなら <code>bin/search.ts --rebuild</code>。</p>");
 
-  document.getElementById("app").innerHTML = out.join("");
+  show(out.join(""));
 }
 
-(async function () {
-  try {
-    var res = await fetch("/api/summary");
-    var data = await res.json();
-    if (!res.ok) throw new Error(data && data.error ? data.error : res.statusText);
-    if (!data) throw new Error("拠点にプロフィールがありません");
-    render(data);
-  } catch (err) {
-    document.getElementById("app").innerHTML =
-      '<header class="head"><p class="kicker">＊ きょてん ＊</p><h1>拠点が からっぽです</h1>' +
-      '<p class="sub err">' + esc(err.message) + "</p></header>";
+function skillCard(t, maxYears) {
+  var star = Math.max(1, Math.round((t.years / maxYears) * 5));
+  return '<a class="tk" href="' + docHref(t.path || ("プロフィール/スキル/" + t.name + ".md")) + '">' +
+    '<div class="tk-top"><span class="tk-name">' + esc(t.name) + "</span>" +
+    '<span class="tk-star">' + "★".repeat(star) + "<i>" + "★".repeat(5 - star) + "</i></span></div>" +
+    '<div class="tk-when">' + esc(t.first) + " 〜 " + esc(t.last) + "　" + t.years + "年</div>" +
+    '<div class="tk-num">記事 ' + num(t.articles) + "　ファイル " + num(t.files) + "</div></a>";
+}
+
+function placeCard(p) {
+  return '<a class="bs" href="' + docHref(p.path) + '"><div class="bs-name">' + esc(p.name) + "</div>" +
+    '<div class="bs-when">' + esc(p.first) + " 〜 " + esc(p.last) + "</div>" +
+    '<div class="bs-num">会話 ' + num(p.sessions) + "　コミット " + num(p.commits) + "</div></a>";
+}
+
+// ---------------------------------------------------------------- 一覧
+
+var LISTS = {
+  diary: { kicker: "日記", title: "アイボが 書いた 日", note: "一度書いたら書き直さない部屋。新しい日から。" },
+  weekly: { kicker: "週報", title: "週ごとの 観測", note: "その週の終わりまでに分かっていたことだけで書いてある。" },
+  trend: { kicker: "推移", title: "つもった もの", note: "累計は「拠点にあるもの」の累計であって、起きたことの累計ではない。" },
+  skill: { kicker: "スキル", title: "くりかえし あらわれる かた", note: "手が動いたファイルと書いた記事から起こしたもの。" },
+  timeline: { kicker: "年表", title: "としごとの かたち", note: "コミットと記事の数で見た23年。" },
+  entity: { kicker: "事典", title: "プロジェクトの 台帳", note: "会話とコミットを、プロジェクトごとに畳んだもの。" },
+};
+
+function renderList(kind, items) {
+  var meta = LISTS[kind];
+  var out = ['<section>'];
+  out.push(secHead(meta.kicker + "　" + num(items.length), meta.title, esc(meta.note)));
+
+  if (kind === "diary") {
+    out.push('<div class="rows">');
+    items.slice().reverse().forEach(function (d) {
+      out.push('<a class="row" href="' + docHref(d.path) + '">' +
+        '<span class="r-key">' + esc(d.date) + "</span>" +
+        '<span class="r-body">' + esc(d.lead) + "</span>" +
+        '<span class="r-num">' + esc(d.by) + "</span></a>");
+    });
+    out.push("</div>");
+  } else if (kind === "weekly" || kind === "trend") {
+    var max = Math.max.apply(null, items.map(function (w) { return w.commits; }).concat([1]));
+    out.push('<div class="rows">');
+    items.slice().reverse().forEach(function (w) {
+      out.push('<a class="row" href="' + docHref(w.path) + '">' +
+        '<span class="r-key">' + esc(w.week) + "</span>" +
+        '<span class="r-body">' + esc(w.from) + " 〜 " + esc(w.to) +
+        (w.projects ? "　プロジェクト " + num(w.projects) : "") + "</span>" +
+        '<span class="r-track"><i style="width:' + ((w.commits / max) * 100).toFixed(2) + '%"></i></span>' +
+        '<span class="r-num">' + (w.commits ? num(w.commits) : "") + "</span></a>");
+    });
+    out.push("</div>");
+  } else if (kind === "skill") {
+    var maxYears = Math.max.apply(null, items.map(function (t) { return t.years; }).concat([1]));
+    out.push('<div class="skills">');
+    items.forEach(function (t) { out.push(skillCard(t, maxYears)); });
+    out.push("</div>");
+  } else if (kind === "timeline") {
+    var maxC = Math.max.apply(null, items.map(function (a) { return a.commits; }).concat([1]));
+    out.push('<div class="rows">');
+    items.slice().reverse().forEach(function (a) {
+      out.push('<a class="row" href="' + docHref(a.path) + '">' +
+        '<span class="r-key">' + a.year + "</span>" +
+        '<span class="r-body">' + esc(a.lead) + "</span>" +
+        '<span class="r-track"><i style="width:' + ((a.commits / maxC) * 100).toFixed(2) + '%"></i></span>' +
+        '<span class="r-num">' + num(a.commits) + "</span></a>");
+    });
+    out.push("</div>");
+  } else {
+    out.push('<div class="basho">');
+    items.forEach(function (p) { out.push(placeCard(p)); });
+    out.push("</div>");
   }
-})();
+  out.push("</section>");
+  show(out.join(""));
+}
+
+// ---------------------------------------------------------------- 部屋を歩く
+
+function renderTree(t) {
+  var out = ["<section>"];
+  out.push(crumbs(t.path, true));
+  out.push(secHead(t.path ? "部屋" : "拠点", t.path || "ぜんぶの部屋",
+    "畳まずに、置いてあるとおりに並べたもの。" +
+    (t.docs.length ? "この下に <b>" + num(t.docs.length) + "</b> 枚。" : "")));
+  if (t.dirs.length) {
+    out.push('<div class="dirs">');
+    t.dirs.forEach(function (d) {
+      out.push('<a class="dir" href="' + treeHref(d.path) + '">' +
+        '<div class="d-name">' + esc(d.name) + "</div>" +
+        '<div class="d-num">' + num(d.count) + " 枚</div></a>");
+    });
+    out.push("</div>");
+  }
+  if (t.docs.length) {
+    out.push('<div class="rows">');
+    t.docs.forEach(function (d) {
+      out.push('<a class="row" href="' + docHref(d.path) + '">' +
+        '<span class="r-body">' + esc(d.name) + "</span>" +
+        '<span class="r-num">' + esc(d.note) + "</span></a>");
+    });
+    out.push("</div>");
+  }
+  if (!t.dirs.length && !t.docs.length) out.push('<p class="note">ここには何もない。</p>');
+  out.push("</section>");
+  show(out.join(""));
+}
+
+// ---------------------------------------------------------------- 1枚読む
+
+var openDoc = null;
+
+function renderDoc(doc) {
+  openDoc = doc;
+  var fields = Object.keys(doc.fields || {});
+  var out = ["<section>"];
+  out.push(crumbs(doc.path, false));
+  out.push('<div class="sec-head"><p class="kicker">▶ ' + esc((doc.fields && doc.fields.room) || "拠点") + "</p>" +
+    "<h2>" + esc(doc.title || doc.path) + "</h2>");
+  if (fields.length) {
+    out.push('<div class="fm">' + fields.map(function (k) {
+      return "<span>" + esc(k) + " " + esc(doc.fields[k]) + "</span>";
+    }).join("") + "</div>");
+  }
+  out.push("</div>");
+  out.push('<div class="tools" style="margin:0 0 16px">' +
+    '<button class="btn on" id="as-md">よみもの</button>' +
+    '<button class="btn" id="as-raw">原文</button></div>');
+  out.push('<div class="doc" id="body">' + md(doc.body) + "</div>");
+  out.push("</section>");
+  show(out.join(""));
+
+  document.getElementById("as-raw").onclick = async function () {
+    this.classList.add("on");
+    document.getElementById("as-md").classList.remove("on");
+    var got = await get("/api/raw?path=" + u(doc.path));
+    var el = document.getElementById("body");
+    el.className = "raw";
+    el.innerHTML = "<pre>" + esc(got.text) + "</pre>";
+  };
+  document.getElementById("as-md").onclick = function () {
+    this.classList.add("on");
+    document.getElementById("as-raw").classList.remove("on");
+    var el = document.getElementById("body");
+    el.className = "doc";
+    el.innerHTML = md(doc.body);
+  };
+}
+
+// ---------------------------------------------------------------- さがす
+
+var ROOMS = ["会話", "自分", "アイボ", "日記", "投稿", "作業", "事典", "プロフィール", "週報", "読書メモ"];
+var findRoom = "";
+
+async function renderSearch(q) {
+  document.getElementById("q").value = q;
+  var got = await get("/api/search?q=" + u(q) + (findRoom ? "&room=" + u(findRoom) : "") + "&limit=80");
+  var out = ["<section>"];
+  out.push(secHead("さがす　" + num(got.hits.length) + (got.hits.length >= 80 ? "+" : ""), q,
+    "拠点に写した場所だけが引ける。無ければ「拠点には無い」が答えになる。"));
+
+  out.push('<div class="chips">');
+  out.push('<a class="btn' + (findRoom ? "" : " on") + '" href="#/search/' + u(q) + '" data-room="">ぜんぶ</a>');
+  ROOMS.forEach(function (r) {
+    out.push('<a class="btn' + (findRoom === r ? " on" : "") + '" href="#/search/' + u(q) +
+      "/" + u(r) + '">' + esc(r) + "</a>");
+  });
+  out.push("</div>");
+
+  if (got.note) out.push('<p class="note err">' + esc(got.note) + "</p>");
+  if (got.fallback) out.push('<p class="note">（3文字未満の語があるので部分一致で引きました）</p>');
+  if (!got.hits.length && !got.note) out.push('<p class="note">みつかりませんでした。</p>');
+
+  got.hits.forEach(function (h) {
+    var where = [h.date, h.project, h.room].filter(Boolean).join(" · ");
+    out.push('<a class="hit" href="' + docHref(h.path) + '">' +
+      '<div class="h-where">' + esc(where) + "</div>" +
+      '<div class="h-head">' + light(esc(h.heading || "（見出しなし）"), got.words) + "</div>" +
+      '<div class="h-snip">' + light(esc(h.snippet), got.words) + "</div></a>");
+  });
+  out.push("</section>");
+  show(out.join(""));
+}
+
+// ---------------------------------------------------------------- 行き先
+
+/** 拠点の住所 → うわばりのどの札か */
+var OF_ROOM = [
+  ["プロフィール/スキル", "#/list/skill"],
+  ["プロフィール/年表", "#/list/timeline"],
+  ["プロフィール/推移", "#/list/trend"],
+  ["日記", "#/list/diary"],
+  ["週報", "#/list/weekly"],
+  ["事典", "#/list/entity"],
+];
+
+function navOf(hash) {
+  if (hash === "#/" || hash === "") return "#/";
+  if (hash.indexOf("#/list/") === 0) return hash.split("/").slice(0, 3).join("/");
+  if (hash.indexOf("#/doc/") === 0) {
+    var path = unurl(hash.slice(6));
+    for (var i = 0; i < OF_ROOM.length; i++) {
+      if (path.indexOf(OF_ROOM[i][0] + "/") === 0) return OF_ROOM[i][1];
+    }
+    return "#/tree/";
+  }
+  if (hash.indexOf("#/tree/") === 0) return "#/tree/";
+  return "";
+}
+
+function mark(hash) {
+  var want = navOf(hash);
+  document.querySelectorAll(".bar a.nav").forEach(function (a) {
+    a.classList.toggle("on", a.getAttribute("href") === want);
+  });
+}
+
+async function route() {
+  var hash = location.hash || "#/";
+  mark(hash);
+  var parts = hash.slice(2).split("/");
+  var kind = parts.shift();
+  var rest = parts.join("/");
+
+  try {
+    if (!kind) {
+      var s = await get("/api/summary");
+      if (!s) throw new Error("拠点にプロフィールがありません");
+      renderSummary(s);
+      return;
+    }
+    if (kind === "list") {
+      var items = await get("/api/list?room=" + u(rest));
+      renderList(rest, items);
+      return;
+    }
+    if (kind === "tree") {
+      renderTree(await get("/api/tree?path=" + u(unurl(rest))));
+      return;
+    }
+    if (kind === "doc") {
+      renderDoc(await get("/api/doc?path=" + u(unurl(rest))));
+      return;
+    }
+    if (kind === "search") {
+      // #/search/<語>/<部屋>
+      var seg = rest.split("/");
+      findRoom = seg.length > 1 ? unurl(seg[1]) : "";
+      await renderSearch(unurl(seg[0] || ""));
+      return;
+    }
+    fail("そんな部屋はない", hash);
+  } catch (err) {
+    fail("読めません", err.message);
+  }
+}
+
+document.getElementById("find").onsubmit = function (ev) {
+  ev.preventDefault();
+  var q = document.getElementById("q").value.trim();
+  if (!q) return;
+  findRoom = "";
+  location.hash = "#/search/" + u(q);
+  if (location.hash === "#/search/" + u(q)) route();
+};
+
+document.addEventListener("keydown", function (ev) {
+  if (ev.key !== "/" || ev.metaKey || ev.ctrlKey) return;
+  var el = document.activeElement;
+  if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA")) return;
+  ev.preventDefault();
+  document.getElementById("q").focus();
+});
+
+window.addEventListener("hashchange", route);
+route();
 </script>
