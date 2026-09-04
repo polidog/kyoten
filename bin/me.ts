@@ -81,15 +81,31 @@ const MACHINE_PREFIXES = [
 const RE_COMMAND_NAME = /<command-name>([^<]*)<\/command-name>/;
 const RE_COMMAND_ARGS = /<command-args>([\s\S]*?)<\/command-args>/;
 
-function isMachine(text: string): boolean {
+export function isMachine(text: string): boolean {
   return MACHINE_PREFIXES.some((p) => text.startsWith(p));
+}
+
+/**
+ * フラグで落とせるものを落とす。**文面を見る前の関門**。
+ *
+ * 「ユーザー行」には本人の入力でないものが大量に混ざる（実測 1,066 行の
+ * うち本人は約 550）。ここを通ったものだけが本人の発話の候補になる。
+ * 数える道具が増えても同じ関門を通すため、外から呼べるようにしてある。
+ */
+export function looksMine(row: Record<string, unknown>): boolean {
+  if (row.type !== "user") return false;
+  if (row.isSidechain || row.isMeta || row.isCompactSummary) return false;
+  const origin = row.origin as Record<string, unknown> | undefined;
+  if (origin && origin.kind === "task-notification") return false;
+  if (row.promptSource === "system") return false;
+  return true;
 }
 
 /**
  * スラッシュコマンド行なら [コマンド名, 本人が打った引数] を返す。
  * 引数が空なら null。
  */
-function unwrapCommand(text: string): [string, string] | null {
+export function unwrapCommand(text: string): [string, string] | null {
   const name = RE_COMMAND_NAME.exec(text);
   const args = RE_COMMAND_ARGS.exec(text);
   const body = args ? args[1].trim() : "";
@@ -128,11 +144,7 @@ function pick(row: Record<string, unknown>, key: string): unknown {
 /** Claude Code の jsonl から本人の発話だけ拾う。 */
 function* fromClaude(path: string): Generator<Utterance> {
   for (const row of readJsonl(path)) {
-    if (row.type !== "user") continue;
-    if (row.isSidechain || row.isMeta || row.isCompactSummary) continue;
-    const origin = row.origin as Record<string, unknown> | undefined;
-    if (origin && origin.kind === "task-notification") continue;
-    if (row.promptSource === "system") continue;
+    if (!looksMine(row)) continue;
 
     const message = row.message as Record<string, unknown> | undefined;
     // tool_result はユーザー行として流れてくる。asText は text ブロックだけ拾う
@@ -291,4 +303,5 @@ function main(): number {
   return failed ? 1 : 0;
 }
 
-process.exit(main());
+// 数える道具が looksMine/isMachine を借りるので、素で import しても走らせない
+if (import.meta.main) process.exit(main());
