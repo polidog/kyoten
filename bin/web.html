@@ -1,4 +1,4 @@
-<title>きょてん</title>
+<title>鑑識</title>
 <link rel="stylesheet" referrerpolicy="no-referrer"
   href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap">
 <style>
@@ -239,7 +239,7 @@ mark{background:var(--gold-wash);color:var(--ink);border-bottom:1px solid var(--
 </style>
 
 <nav class="bar"><div class="bar-in">
-  <a class="home" href="#/">＊ きょてん ＊</a>
+  <a class="home" href="#/">＊ 鑑識 ＊</a>
   <a class="nav" href="#/" data-at="#/">まとめ</a>
   <a class="nav" href="#/list/diary">日記</a>
   <a class="nav" href="#/list/weekly">週報</a>
@@ -252,7 +252,7 @@ mark{background:var(--gold-wash);color:var(--ink);border-bottom:1px solid var(--
 </div></nav>
 
 <div class="wrap" id="app">
-  <header class="head"><p class="kicker">＊ きょてん ＊</p><h1>よみこみ中…</h1></header>
+  <header class="head"><p class="kicker">＊ 鑑識 ＊</p><h1>よみこみ中…</h1></header>
 </div>
 
 <script>
@@ -578,7 +578,7 @@ function show(html) {
 }
 
 function fail(title, message) {
-  show('<header class="head"><p class="kicker">＊ きょてん ＊</p><h1>' + esc(title) + "</h1>" +
+  show('<header class="head"><p class="kicker">＊ 鑑識 ＊</p><h1>' + esc(title) + "</h1>" +
     '<p class="sub err">' + esc(message) + "</p></header>");
 }
 
@@ -588,10 +588,11 @@ function renderSummary(s) {
   var out = [];
 
   out.push('<header class="head">');
-  out.push('<p class="kicker">＊ きょてん ＊　' + esc(s.first) + " 〜 " + esc(s.last) + "</p>");
+  out.push('<p class="kicker">＊ 鑑識 ＊　' + esc(s.first) + " 〜 " + esc(s.last) + "</p>");
   out.push("<h1>じぶんを しらべる</h1>");
   out.push('<p class="sub">' + esc(s.lead) +
-    " 手で書いた部屋は一つもない —— ぜんぶログから機械が起こしたもの。" +
+    " <b>本人には聞かない。</b>残った痕跡から起こす —— 手で書いた部屋は一つもなく、" +
+    "ぜんぶログから機械が起こしたもの。" +
     "ここはまとめで、上の帯から<b>部屋ごとに潜って原文まで</b>読める。</p>");
   out.push('<div class="win status"><div class="st-grid">');
   s.stats.forEach(function (t) {
