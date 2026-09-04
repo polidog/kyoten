@@ -370,6 +370,55 @@ export function fukuroList(): readonly FukuroHead[] {
     }).sort((a, b) => b.last.localeCompare(a.last) || a.name.localeCompare(b.name)));
 }
 
+// ---------------------------------------------------------------- まとめ
+
+/**
+ * 城に出すぶん。
+ *
+ * ブラウザで見たいのは**まとめ**で、776週の一覧でも71枚のとくぎでもない
+ * （潜るのは端末の仕事）。だから一覧はどれも頭を落として渡す。
+ * おつげだけは節をそのまま持たせる —— 向こうから来た問いは要約しない。
+ */
+export interface Summary {
+  readonly first: string;
+  readonly last: string;
+  readonly span: number;
+  readonly lead: string;
+  readonly tsuyosa: readonly Tsuyosa[];
+  readonly imaHead: string;
+  readonly ima: readonly Ima[];
+  readonly nagaku: readonly Nagaku[];
+  readonly ayumi: readonly Ayumi[];
+  readonly tokugi: number;
+  readonly tokugiTop: readonly Tokugi[];
+  readonly basho: readonly FukuroHead[];
+  readonly weeks: number;
+  readonly konshu: Doc | null;
+}
+
+export function summary(): Summary | null {
+  const s = status();
+  if (!s) return null;
+  const weeks = otsugeList();
+  const last = weeks[weeks.length - 1];
+  return {
+    first: s.first,
+    last: s.last,
+    span: s.span,
+    lead: s.doc.lead,
+    tsuyosa: s.tsuyosa,
+    imaHead: s.imaHead,
+    ima: s.ima,
+    nagaku: s.nagaku,
+    ayumi: s.ayumi,
+    tokugi: s.tokugi,
+    tokugiTop: tokugiList().slice(0, 12),
+    basho: fukuroList().slice(0, 8),
+    weeks: weeks.length,
+    konshu: last ? otsuge(last.week) : null,
+  };
+}
+
 // ---------------------------------------------------------------- 原文
 
 /** ファイル名に使われる部分。`/` と `..` を弾く（住所を外に出さない）。 */

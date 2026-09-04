@@ -3,8 +3,8 @@
  * shiro — 城（拠点をブラウザで歩く）
  *
  * Obsidian で眺めても、拠点は「日付順に並んだテキスト」でしかない。
- * 23年ぶんの数はステータス画面に、とくぎ71枚は一覧に、おつげ776週は
- * 年ごとの帯にしたほうが速く見つかる。ここはその見せ方だけを持つ。
+ * ここは23年ぶんを**1枚のまとめ**にして返すだけの城。潜って読むのは
+ * 端末（`tsuyosa.ts`）の仕事で、こちらは一覧も検索も持たない。
  *
  * 掟に沿って:
  *   - 依存を増やさない  `node:http` だけ。npm も build も要らない
@@ -26,10 +26,6 @@ import { fileURLToPath } from "node:url";
 import { KYOTEN, n } from "./dougu.ts";
 import { parseArgs } from "./cli.ts";
 import * as yomi from "./yomi.ts";
-import { connect, DB, makeSnippet, ROOMS, search, stale } from "./ruula.ts";
-
-/** 断り。頼みが悪いので 400 で返す（こちらが壊れたわけではない） */
-class Kotowaru extends Error {}
 
 /** 外向きには開かない。拠点には取引先の実名も認証まわりの試行錯誤も入っている */
 const HOST = "127.0.0.1";
@@ -39,90 +35,20 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 
 // ---------------------------------------------------------------- 口
 
-function ruula(u: URL) {
-  const words = (u.searchParams.get("q") ?? "").split(/\s+/).filter(Boolean);
-  if (!words.length) return { rows: [], fallback: false };
-
-  const room = u.searchParams.get("room") ?? undefined;
-  if (room && !(ROOMS as readonly string[]).includes(room)) {
-    throw new Kotowaru(`知らない部屋です: ${room}`);
-  }
-  const limit = Math.min(200, Number.parseInt(u.searchParams.get("limit") ?? "40", 10) || 40);
-
-  const con = connect();
-  try {
-    const [rows, fallback] = search(
-      con,
-      words,
-      room,
-      u.searchParams.get("project") ?? undefined,
-      u.searchParams.get("since") || null,
-      u.searchParams.get("until") || null,
-      limit,
-    );
-    // 本文をそのまま返すと 1 件で数万字になる。抜粋だけ渡して、
-    // 続きは原文（/api/raw）に取りに行かせる
-    return {
-      fallback,
-      rows: rows.map((r) => ({
-        room: r.room,
-        path: r.path,
-        project: r.project,
-        date: r.date,
-        source: r.source,
-        heading: r.heading,
-        line: r.line,
-        snippet: makeSnippet(r.body, words, false, 220),
-      })),
-    };
-  } finally {
-    con.close();
-  }
-}
-
-/** ルーラの結果の `bouken/…` を拠点の実パスに戻す。reading-notes は拠点の外 */
-function rawOf(u: URL) {
-  const rel = u.searchParams.get("path") ?? "";
-  const got = yomi.raw(rel);
-  if (!got) throw new Kotowaru(`読めません: ${rel}`);
-  return got;
-}
-
 function api(u: URL): unknown {
-  switch (u.pathname) {
-    case "/api/status":
-      return yomi.status();
-    case "/api/tokugi": {
-      const name = u.searchParams.get("name");
-      return name ? yomi.tokugi(name) : yomi.tokugiList();
-    }
-    case "/api/nenpyo": {
-      const year = u.searchParams.get("year");
-      return year ? yomi.nenpyo(year) : yomi.nenpyoList();
-    }
-    case "/api/otsuge": {
-      const week = u.searchParams.get("week");
-      return week ? yomi.otsuge(week) : yomi.otsugeList();
-    }
-    case "/api/fukuro": {
-      const path = u.searchParams.get("path");
-      return path ? yomi.raw(path) : yomi.fukuroList();
-    }
-    case "/api/ruula":
-      return ruula(u);
-    case "/api/raw":
-      return rawOf(u);
-    default:
-      return undefined;
-  }
+  if (u.pathname === "/api/summary") return yomi.summary();
+  return undefined;
 }
 
 function send(res: ServerResponse, code: number, type: string, body: string | Buffer): void {
   res.writeHead(code, {
     "content-type": type,
     "cache-control": "no-store",
-    // 拠点の中身をブラウザの外に出させない
-    "content-security-policy": "default-src 'self' 'unsafe-inline'",
+    // 拠点の中身が外に出る口を塞ぐ。外を向いてよいのは字の形だけ
+    "content-security-policy":
+      "default-src 'self' 'unsafe-inline'; " +
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+      "font-src 'self' https://fonts.gstatic.com",
     "x-content-type-options": "nosniff",
   });
   res.end(body);
@@ -148,8 +74,7 @@ function handle(req: IncomingMessage, res: ServerResponse): void {
     send(res, 404, "text/plain; charset=utf-8", "ここには何もない");
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    const code = err instanceof Kotowaru ? 400 : 500;
-    send(res, code, "application/json; charset=utf-8", JSON.stringify({ error: message }));
+    send(res, 500, "application/json; charset=utf-8", JSON.stringify({ error: message }));
   }
 }
 
@@ -184,7 +109,7 @@ function main(): number {
         `  ${s.first} 〜 ${s.last}（${s.span}年）　とくぎ ${n(s.tokugi)}　` +
           `おつげ ${n(yomi.otsugeList().length)}週`,
       );
-      if (stale()) console.error(`  （ルーラの索引が素材より古いです: ${DB}）`);
+      console.error("  潜って読むなら bin/tsuyosa.ts");
     }
     if (!args.flags["no-open"]) open(url);
   });

@@ -50,9 +50,10 @@ Slack スレッド全文、認証まわりの試行錯誤——全部入って�
 - **LV6 完了**（2026-09-03）— おつげ 776週（2004-W52 〜 2026-W36）。
   配達はせず拠点に置くだけにした（掟4の3例はどれも外に出す口を持っていた）。
   ルーラは 43,759かたまり / 5,209ファイル。
-- **見る口を建てた**（2026-09-04）— 城 `bin/shiro.ts`（ブラウザ）と
-  つよさ `bin/tsuyosa.ts`（端末）。どちらも拠点を**読むだけ**で、素材は
-  `bin/yomi.ts` から取る。城は 127.0.0.1 に固定してある。
+- **見る口を建てた**（2026-09-04）— 城 `bin/shiro.ts` と つよさ
+  `bin/tsuyosa.ts`。どちらも拠点を**読むだけ**で、素材は `bin/yomi.ts`。
+  **城はまとめ1枚**（口は `/api/summary` だけ・127.0.0.1 固定・見た目は
+  設計図に合わせた）、**潜って読むのは端末**、という分け方にした。
 - **すずのおとを建てた**（2026-09-04）— `bin/suzu.ts`。Claude Code の hooks
   から鳴って、拠点を思い出させる。`SessionStart`（拠点の大きさ・いま居る
   場所のふくろ・いちばん新しいおつげ・ルーラの呼び方）、`UserPromptSubmit`
@@ -77,8 +78,8 @@ Slack スレッド全文、認証まわりの試行錯誤——全部入って�
 | ルーラ | 全文検索。「行ったことのある場所にしか飛べない」 |
 | きょうかい | git commit（セーブ） |
 | よるのとばり | systemd user timer の定時便 |
-| 城 | `bin/shiro.ts` 拠点をブラウザで見る。読むだけ |
-| つよさ | `bin/tsuyosa.ts` 拠点を端末で見る。読むだけ |
+| 城 | `bin/shiro.ts` 拠点のまとめをブラウザに出す。読むだけ |
+| つよさ | `bin/tsuyosa.ts` 拠点を端末で歩く。潜って読むのはこちら |
 | すずのおと | `bin/suzu.ts` hooks から鳴って拠点を思い出させる |
 
 役者: 勇者 polidog（人間・観測される側）/ 賢者（対話）/ 盗賊（拾い屋）/
@@ -262,8 +263,8 @@ bin/ruula.ts --rebuild && bin/ruula.ts "検索語"
 bin/tsuyosa.ts --plain つよさ        # 枠と数が揃っているか
 bin/tsuyosa.ts --plain ルーラ 冪等    # 抜粋に検索語が残っているか
 bin/shiro.ts --no-open &             # 城を建てて
-curl -s localhost:8823/api/status | head -c 200
-curl -s 'localhost:8823/api/raw?path=../../.ssh/id_rsa'   # 拠点の外は読めないこと
+curl -s localhost:8823/api/summary | head -c 200
+fuser -k 8823/tcp                    # 止めるとき（pkill は自分も殺す）
 ```
 
 すずのおとは拠点に書かないので、鳴るかと、黙って終わるかを見る:
@@ -311,7 +312,7 @@ bin/ruula.ts --rebuild      # 刻み直すだけ
 bin/ruula.ts --stats        # 索引の中身を数える
 bin/ruula.ts --rebuild --quiet  # 刻み直して1行だけ（定時便用）
 
-bin/shiro.ts                # 城。ブラウザで拠点を歩く（127.0.0.1 固定）
+bin/shiro.ts                # 城。拠点のまとめを出す（127.0.0.1 固定）
 bin/shiro.ts --port 9999 --no-open
 
 bin/tsuyosa.ts              # つよさ。端末で拠点を歩く
