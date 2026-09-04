@@ -3,7 +3,7 @@
  * yorunotobari — よるのとばり（定時便）
  *
  * 盗賊が夜のうちに拾って回る。utsushi・kotonoha・sotonokoe・teato・fukuro・
- * status・otsuge を順に流し、ルーラを刻み直して、拠点をきょうかい
+ * status・otsuge・uwasa を順に流し、ルーラを刻み直して、拠点をきょうかい
  * （git commit）する。systemd user timer から呼ばれる。
  *
  * 掟:
@@ -45,6 +45,7 @@ const ROOMS: [string, string][] = [
   ["fukuro", "ふくろ"],
   ["status", "ステータス"],
   ["otsuge", "おつげ"],
+  ["uwasa", "まちのうわさ"],
 ];
 
 /**
@@ -177,6 +178,7 @@ function main(): number {
     ["fukuro", common],
     ["status", common],
     ["otsuge", common],
+    ["uwasa", common],
   ];
   // ルーラは素材が新しければ検索時に自分で刻み直すが、そのぶん最初の
   // 1回を人が待つことになる。夜のうちに刻んでおく。--dry-run のときは

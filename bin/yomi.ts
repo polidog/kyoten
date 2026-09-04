@@ -343,6 +343,39 @@ export function otsuge(week: string): Doc | null {
   return existsSync(abs) ? readDoc(abs) : null;
 }
 
+// ---------------------------------------------------------------- まちのうわさ
+
+export interface UwasaHead {
+  readonly week: string;
+  readonly from: string;
+  readonly to: string;
+  /** その週の終わりまでの累計。おつげの `commits` は週内の数なので別もの */
+  readonly commits: number;
+  readonly projects: number;
+  readonly path: string;
+}
+
+export function uwasaList(): readonly UwasaHead[] {
+  const paths = listFiles(room("uwasa"), ".md");
+  return cached("uwasa", paths, () =>
+    paths.map((abs) => {
+      const doc = readDoc(abs);
+      return {
+        week: doc.fields.week || doc.title.replace(/ のうわさ$/, ""),
+        from: doc.fields.from ?? "",
+        to: doc.fields.to ?? "",
+        commits: num(doc.fields.commits),
+        projects: num(doc.fields.projects),
+        path: doc.path,
+      };
+    }).sort((a, b) => a.week.localeCompare(b.week)));
+}
+
+export function uwasa(week: string): Doc | null {
+  const abs = room("uwasa", `${safeName(week)}.md`);
+  return existsSync(abs) ? readDoc(abs) : null;
+}
+
 // ---------------------------------------------------------------- ふくろ
 
 export interface FukuroHead {
@@ -394,6 +427,7 @@ export interface Summary {
   readonly basho: readonly FukuroHead[];
   readonly weeks: number;
   readonly konshu: Doc | null;
+  readonly uwasa: Doc | null;
 }
 
 export function summary(): Summary | null {
@@ -416,6 +450,13 @@ export function summary(): Summary | null {
     basho: fukuroList().slice(0, 8),
     weeks: weeks.length,
     konshu: last ? otsuge(last.week) : null,
+    // うわさは週の数がおつげと同じとは限らない（部屋を建てた時点で揃うが、
+    // 片方だけ流した夜がありうる）ので、うわさ側の最後の週から引く
+    uwasa: (() => {
+      const u = uwasaList();
+      const tail = u[u.length - 1];
+      return tail ? uwasa(tail.week) : null;
+    })(),
   };
 }
 

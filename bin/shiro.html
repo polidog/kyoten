@@ -221,6 +221,23 @@ function render(s) {
     out.push("</div></div></section>");
   }
 
+  // ---- まちのうわさ
+  if (s.uwasa) {
+    var w = s.uwasa;
+    out.push("<section>");
+    out.push(secHead("まちのうわさ", "つもった もの",
+      "吟遊詩人の週報。おつげが「その週に何が起きたか」なら、うわさは「ここまでで何が積み上がったか」。" +
+      "ステータスは1枚しか無いので、先週の自分はここにしか残らない。"));
+    out.push('<div class="otsuge">');
+    out.push('<div class="o-title">' + esc(w.title) + "</div>");
+    out.push('<div class="o-when">' + esc(w.lead) + "</div>");
+    out.push('<div class="o-body">');
+    w.sections.forEach(function (sec) {
+      out.push('<div class="o-sec"><h3>' + esc(sec.head) + "</h3>" + lines(sec.lines) + "</div>");
+    });
+    out.push("</div></div></section>");
+  }
+
   // ---- とくぎ
   var maxYears = Math.max.apply(null, s.tokugiTop.map(function (t) { return t.years; }).concat([1]));
   out.push("<section>");

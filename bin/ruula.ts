@@ -7,7 +7,7 @@
  * 刻む対象:
  *     bouken/    ぼうけんのしょ（会話原文の写し）
  *     kotonoha/  ことのは（自分の発言）
- *     soto/ teato/ fukuro/ status/ otsuge/
+ *     soto/ teato/ fukuro/ status/ otsuge/ uwasa/
  *     ~/Documents/Obsidian/reading-notes/   読み専用の水源
  *
  * SQLite FTS5 の trigram トークナイザを使う。日本語を分かち書きせずに
@@ -47,7 +47,7 @@ const RE_DATE = /(\d{4}-\d{2}-\d{2})/;
 const RE_KOTONOHA_HEAD = /^\d\d:\d\d:\d\d +(.+?)（/;
 
 export const ROOMS = ["bouken", "kotonoha", "soto", "teato", "fukuro", "status", "otsuge",
-  "reading-notes"] as const;
+  "uwasa", "reading-notes"] as const;
 
 function rooms(): [string, string][] {
   return [
@@ -58,6 +58,7 @@ function rooms(): [string, string][] {
     [join(KYOTEN, "fukuro"), "fukuro"],
     [join(KYOTEN, "status"), "status"],
     [join(KYOTEN, "otsuge"), "otsuge"],
+    [join(KYOTEN, "uwasa"), "uwasa"],
     [READING_NOTES, "reading-notes"],
   ];
 }

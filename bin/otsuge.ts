@@ -8,7 +8,11 @@
  * 出力は `otsuge/<ISO年>-W<週>.md`（月曜はじまりの ISO 週）。
  *
  * ふくろ・ステータスと同じく**拠点の中しか見ない**。走らせる順番は
- * … → teato → fukuro → status → otsuge。
+ * … → teato → fukuro → status → otsuge → uwasa。
+ *
+ * 日ごとの走査（`scan`）と週への畳み込み（`fold`）は まちのうわさ
+ * （`uwasa.ts`）も使う。素材の読み方が2つに割れると、同じ週について
+ * 違う数を言う部屋ができてしまうので、ここから借りてもらう。
  *
  * ## その週の目でだけ書く
  *
@@ -72,7 +76,7 @@ const ALIAS: Record<string, string> = {
   scss: "css", sass: "css",
 };
 
-const MS_PER_DAY = 86_400_000;
+export const MS_PER_DAY = 86_400_000;
 
 function bump(counter: Map<string, number>, key: string, by = 1): void {
   counter.set(key, (counter.get(key) ?? 0) + by);
@@ -82,11 +86,11 @@ function merge(into: Map<string, number>, from: Map<string, number>): void {
   for (const [k, v] of from) bump(into, k, v);
 }
 
-function mostCommon(counter: Map<string, number>, limit: number): [string, number][] {
+export function mostCommon(counter: Map<string, number>, limit: number): [string, number][] {
   return [...counter.entries()].sort((a, b) => b[1] - a[1]).slice(0, limit);
 }
 
-class Day {
+export class Day {
   commits = 0;
   readonly projects = new Map<string, number>();
   readonly exts = new Map<string, number>();
@@ -116,7 +120,7 @@ function dayOf(days: Map<string, Day>, key: string): Day {
 }
 
 /** 拠点の各部屋を日付ごとに集める。 */
-function scan(days: Map<string, Day>): void {
+export function scan(days: Map<string, Day>): void {
   const teato = join(KYOTEN, "teato");
   if (existsSync(teato)) {
     for (const path of listFiles(teato, ".md")) {
@@ -198,11 +202,11 @@ function scan(days: Map<string, Day>): void {
 
 // ---------------------------------------------------------------- 週に畳む
 
-function toUtc(date: string): number {
+export function toUtc(date: string): number {
   return Date.parse(date + "T00:00:00Z");
 }
 
-function fromUtc(ms: number): string {
+export function fromUtc(ms: number): string {
   return new Date(ms).toISOString().slice(0, 10);
 }
 
@@ -222,7 +226,7 @@ function weekKey(date: string): string {
   return `${year}-W${String(week).padStart(2, "0")}`;
 }
 
-class Week {
+export class Week {
   readonly key: string;
   readonly start: string;
   readonly end: string;
@@ -263,7 +267,7 @@ class Week {
   }
 }
 
-function fold(days: Map<string, Day>): Week[] {
+export function fold(days: Map<string, Day>): Week[] {
   const weeks = new Map<string, Week>();
   for (const [key, day] of days) {
     if (Number.isNaN(toUtc(key))) continue;
@@ -421,4 +425,5 @@ function main(): number {
   return 0;
 }
 
-process.exit(main());
+// うわさ（`uwasa.ts`）が scan/fold を借りるので、素で import しても走らせない
+if (import.meta.main) process.exit(main());
