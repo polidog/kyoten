@@ -31,7 +31,7 @@ import { dirname, join, relative } from "node:path";
 import { KYOTEN, n, readText, splitFrontmatter } from "./dougu.ts";
 import { listFiles, parseArgs, parseSince } from "./cli.ts";
 
-const DB = join(KYOTEN, ".ruula.db");
+export const DB = join(KYOTEN, ".ruula.db");
 const READING_NOTES = process.env.KYOTEN_READING ??
   join(homedir(), "Documents/Obsidian/reading-notes");
 
@@ -39,14 +39,14 @@ const READING_NOTES = process.env.KYOTEN_READING ??
 const SCHEMA = 1;
 
 /** trigram は3文字未満を索引に入れられない */
-const TRIGRAM_MIN = 3;
+export const TRIGRAM_MIN = 3;
 
 const RE_HEADING = /^(#{1,6}) +([^\n]*)$/;
 const RE_DATE = /(\d{4}-\d{2}-\d{2})/;
 /** ことのはの見出し: "09:12:03 polidog/kyoten（claude-code · /omarchy）" */
 const RE_KOTONOHA_HEAD = /^\d\d:\d\d:\d\d +(.+?)（/;
 
-const ROOMS = ["bouken", "kotonoha", "soto", "teato", "fukuro", "status", "otsuge",
+export const ROOMS = ["bouken", "kotonoha", "soto", "teato", "fukuro", "status", "otsuge",
   "reading-notes"] as const;
 
 function rooms(): [string, string][] {
@@ -113,7 +113,7 @@ function fileMeta(path: string, room: string, fields: Record<string, string>) {
   };
 }
 
-function build(verbose = true): number {
+export function build(verbose = true): number {
   const tmp = DB.replace(/\.db$/, ".db.tmp");
   for (const suffix of ["", "-journal", "-wal", "-shm"]) {
     rmSync(tmp + suffix, { force: true });
@@ -194,7 +194,7 @@ function build(verbose = true): number {
 }
 
 /** 索引より新しい素材があるか。無ければ刻み直さない。 */
-function stale(): boolean {
+export function stale(): boolean {
   if (!existsSync(DB)) return true;
   const dbMtime = statSync(DB).mtimeMs;
   for (const [root] of rooms()) {
@@ -210,13 +210,13 @@ function stale(): boolean {
   return false;
 }
 
-function connect(): DatabaseSync {
+export function connect(): DatabaseSync {
   return new DatabaseSync(DB, { readOnly: true });
 }
 
 // ---------------------------------------------------------------- 引く
 
-interface Row {
+export interface Row {
   readonly room: string;
   readonly path: string;
   readonly project: string;
@@ -232,7 +232,7 @@ function ftsQuery(words: readonly string[]): string {
   return words.map((w) => '"' + w.replaceAll('"', '""') + '"').join(" AND ");
 }
 
-function search(
+export function search(
   con: DatabaseSync,
   words: readonly string[],
   room: string | undefined,
@@ -289,7 +289,7 @@ function escapeRe(s: string): string {
 }
 
 /** 部分一致で引いたときの抜粋。一致箇所のまわりを切り出して光らせる。 */
-function makeSnippet(body: string, words: readonly string[], tty: boolean, width = 170): string {
+export function makeSnippet(body: string, words: readonly string[], tty: boolean, width = 170): string {
   const flat = body.split(/\s+/).filter(Boolean).join(" ");
   const low = flat.toLowerCase();
   const hits = words.map((w) => low.indexOf(w.toLowerCase())).filter((i) => i >= 0);
@@ -384,4 +384,4 @@ function main(): number {
   return 0;
 }
 
-process.exit(main());
+if (import.meta.main) process.exit(main());

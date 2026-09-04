@@ -1,0 +1,596 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>拠点の城</title>
+<style>
+:root {
+  --fg: #fff;
+  --dim: #8c94a8;
+  --line: #fff;
+  --gold: #ffd23f;
+  --blue: #6ec1ff;
+  --bg: #05070d;
+  --win: #0a0e1a;
+  --edge: #232b40;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Yu Gothic", system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.7;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+/* ドラクエのウィンドウ。白い枠に黒。角は少しだけ丸い */
+.win {
+  border: 3px solid var(--line);
+  border-radius: 10px;
+  background: var(--win);
+  padding: 14px 18px;
+}
+a { color: var(--blue); }
+code { color: var(--gold); }
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+
+#app { max-width: 1180px; margin: 0 auto; padding: 20px 16px 60px; }
+
+header.crown {
+  display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap;
+  padding: 4px 6px 16px;
+}
+header.crown h1 { font-size: 20px; margin: 0; letter-spacing: .18em; }
+header.crown .span { color: var(--dim); font-size: 13px; }
+header.crown .span b { color: var(--gold); font-weight: 600; }
+
+.floor { display: grid; grid-template-columns: 168px 1fr; gap: 16px; align-items: start; }
+@media (max-width: 760px) { .floor { grid-template-columns: 1fr; } }
+
+/* コマンドウィンドウ */
+nav.menu { padding: 10px 0; position: sticky; top: 16px; }
+nav.menu button {
+  display: block; width: 100%; text-align: left;
+  padding: 5px 10px 5px 4px; letter-spacing: .1em;
+}
+nav.menu button .cur { display: inline-block; width: 1.4em; color: var(--gold); opacity: 0; }
+nav.menu button[aria-current="true"] .cur { opacity: 1; animation: blink 1s steps(2) infinite; }
+nav.menu button[aria-current="true"] { color: var(--gold); }
+nav.menu button:hover .cur { opacity: .4; }
+@keyframes blink { 50% { opacity: .25; } }
+@media (max-width: 760px) {
+  nav.menu { position: static; display: flex; flex-wrap: wrap; gap: 4px; padding: 8px; }
+  nav.menu button { width: auto; }
+}
+
+main.view { min-height: 60vh; padding: 18px 22px 26px; }
+h2.head { font-size: 15px; margin: 0 0 14px; letter-spacing: .14em; color: var(--gold); }
+h3.sub {
+  font-size: 12px; letter-spacing: .14em; color: var(--dim);
+  margin: 26px 0 10px; border-bottom: 1px solid #1e2536; padding-bottom: 6px;
+}
+.lead { color: var(--dim); margin: -6px 0 4px; }
+.muted { color: var(--dim); }
+.back { color: var(--dim); font-size: 12px; margin-bottom: 10px; display: inline-block; }
+.back:hover { color: var(--gold); }
+
+/* つよさ */
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.card { border: 1px solid var(--edge); border-radius: 6px; padding: 10px 12px; }
+.card .k { color: var(--dim); font-size: 12px; letter-spacing: .1em; }
+.card .v { font-size: 20px; color: var(--gold); }
+.card .v small { font-size: 12px; color: var(--dim); margin-left: 4px; }
+
+/* 棒 */
+.bars { display: grid; gap: 5px; }
+.bar { display: grid; grid-template-columns: 132px 1fr 96px; gap: 10px; align-items: center; }
+.bar .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bar button.name { text-align: left; }
+.bar button.name:hover { color: var(--gold); }
+.bar .track { background: #141a29; border-radius: 3px; height: 12px; overflow: hidden; }
+.bar .fill { height: 100%; background: var(--blue); border-radius: 3px; }
+.bar .fill.gold { background: var(--gold); }
+.bar .num { text-align: right; color: var(--dim); font-size: 12px; }
+
+/* 一覧 */
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; }
+.tile { border: 1px solid var(--edge); border-radius: 6px; padding: 8px 11px; text-align: left; width: 100%; }
+.tile:hover { border-color: var(--gold); }
+.tile .n { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.tile .n b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tile .star { color: var(--gold); letter-spacing: .1em; font-size: 12px; flex: none; }
+.tile .meta { color: var(--dim); font-size: 11.5px; }
+
+/* おつげの帯 */
+.years { display: grid; gap: 3px; }
+.yearrow { display: grid; grid-template-columns: 44px 1fr; gap: 8px; align-items: center; }
+.yearrow .y { color: var(--dim); font-size: 12px; }
+.weeks { display: flex; gap: 2px; }
+.weeks button {
+  flex: 1 1 0; min-width: 4px; height: 14px; border-radius: 2px;
+  background: #141a29; border: 1px solid transparent;
+}
+.weeks button:hover { border-color: var(--gold); }
+.weeks button[data-on="1"] { background: #1d3a5c; }
+.weeks button[data-on="2"] { background: #2b5f96; }
+.weeks button[data-on="3"] { background: #4a8fd4; }
+.weeks button[data-on="4"] { background: var(--blue); }
+
+/* ルーラ */
+.seek { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+.seek input[type=search] {
+  flex: 1 1 260px; background: #0d1220; color: var(--fg);
+  border: 2px solid var(--edge); border-radius: 6px; padding: 7px 12px; font: inherit;
+}
+.seek input[type=search]:focus { outline: none; border-color: var(--gold); }
+.rooms { display: flex; gap: 4px; flex-wrap: wrap; margin: 8px 0 2px; }
+.rooms button {
+  border: 1px solid var(--edge); border-radius: 999px;
+  padding: 2px 11px; font-size: 12px; color: var(--dim);
+}
+.rooms button[aria-pressed="true"] { border-color: var(--gold); color: var(--gold); }
+.hits { display: grid; gap: 2px; margin-top: 14px; }
+.hit {
+  border: 1px solid transparent; border-bottom: 1px solid #161d2c;
+  border-radius: 6px; padding: 9px 11px; text-align: left; width: 100%;
+}
+.hit:hover { border-color: var(--gold); }
+.hit .where { color: var(--blue); font-size: 11.5px; letter-spacing: .06em; }
+.hit .h { font-weight: 600; margin: 1px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hit .s { color: var(--dim); font-size: 12.5px; }
+.hit mark { background: none; color: var(--gold); }
+
+/* 本文 */
+.body { margin-top: 6px; }
+.body ul { margin: 6px 0; padding-left: 1.3em; }
+.body li { margin: 1px 0; }
+.body p { margin: 8px 0; }
+.body pre {
+  background: #0d1220; border: 1px solid var(--edge); border-radius: 6px;
+  padding: 10px 12px; overflow-x: auto; font-size: 12.5px; line-height: 1.5;
+}
+.body table { border-collapse: collapse; font-size: 13px; display: block; overflow-x: auto; }
+.body th, .body td { border: 1px solid var(--edge); padding: 3px 10px; text-align: left; white-space: nowrap; }
+.body th { color: var(--dim); font-weight: 600; }
+.raw { white-space: pre-wrap; word-break: break-word; font-size: 12.5px; line-height: 1.65; }
+.err { color: #ff8080; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="crown">
+    <h1>き ょ て ん</h1>
+    <div class="span" id="span"></div>
+  </header>
+  <div class="floor">
+    <nav class="win menu" id="menu"></nav>
+    <main class="win view" id="view">よみこみ中…</main>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+// ---------------------------------------------------------------- 小道具
+
+function esc(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+  });
+}
+function num(v) { return (v || 0).toLocaleString("en-US"); }
+function $(sel) { return document.querySelector(sel); }
+
+var cache = new Map();
+async function get(path) {
+  if (cache.has(path)) return cache.get(path);
+  var res = await fetch(path);
+  var data = await res.json();
+  if (!res.ok) throw new Error(data && data.error ? data.error : res.statusText);
+  cache.set(path, data);
+  return data;
+}
+
+/**
+ * 拠点の Markdown を最小限だけ描く。見出し・箇条書き・表・コードフェンスだけ。
+ * 中身は必ず esc を通す（会話原文には HTML もタグも普通に入っている）。
+ */
+function md(lines) {
+  var out = [];
+  var mode = null; // "ul" | "table" | "pre"
+  var buf = [];
+
+  function flush() {
+    if (mode === "ul") {
+      out.push("<ul>" + buf.map(function (t) { return "<li>" + inline(t) + "</li>"; }).join("") + "</ul>");
+    } else if (mode === "table") {
+      var rows = buf.map(function (t) {
+        return t.replace(/^\|/, "").replace(/\|$/, "").split("|").map(function (c) { return c.trim(); });
+      }).filter(function (cells) {
+        return !cells.every(function (c) { return /^:?-{2,}:?$/.test(c); });
+      });
+      var head = rows.shift() || [];
+      out.push(
+        "<table><thead><tr>" +
+        head.map(function (c) { return "<th>" + inline(c) + "</th>"; }).join("") +
+        "</tr></thead><tbody>" +
+        rows.map(function (r) {
+          return "<tr>" + r.map(function (c) { return "<td>" + inline(c) + "</td>"; }).join("") + "</tr>";
+        }).join("") +
+        "</tbody></table>"
+      );
+    } else if (mode === "pre") {
+      out.push("<pre>" + esc(buf.join("\n")) + "</pre>");
+    }
+    mode = null;
+    buf = [];
+  }
+
+  var fence = null;
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i];
+    var bar = /^\s*(`{3,}|~{3,})/.exec(line);
+    if (fence) {
+      if (bar && bar[1][0] === fence[0] && bar[1].length >= fence.length) { flush(); fence = null; }
+      else { mode = "pre"; buf.push(line); }
+      continue;
+    }
+    if (bar) { flush(); fence = bar[1]; mode = "pre"; continue; }
+
+    var trimmed = line.trim();
+    if (!trimmed) { flush(); continue; }
+    if (/^-\s+/.test(trimmed)) {
+      if (mode !== "ul") flush();
+      mode = "ul";
+      buf.push(trimmed.replace(/^-\s+/, ""));
+      continue;
+    }
+    if (trimmed.charAt(0) === "|") {
+      if (mode !== "table") flush();
+      mode = "table";
+      buf.push(trimmed);
+      continue;
+    }
+    flush();
+    out.push("<p>" + inline(trimmed) + "</p>");
+  }
+  if (fence) mode = "pre";
+  flush();
+  return out.join("");
+}
+
+/** `code` と裸の URL だけ。強調記号は原文のまま見せる */
+function inline(text) {
+  var html = esc(text);
+  html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
+  html = html.replace(/(https?:\/\/[^\s<)]+)/g, '<a href="$1" target="_blank" rel="noreferrer">$1</a>');
+  return html;
+}
+
+function docHtml(doc, back) {
+  var out = [];
+  if (doc.lead) out.push('<p class="lead">' + esc(doc.lead) + "</p>");
+  doc.sections.forEach(function (s) {
+    out.push('<h3 class="sub">' + esc(s.head) + "</h3>");
+    out.push('<div class="body">' + md(s.lines) + "</div>");
+  });
+  out.push(
+    '<p style="margin-top:22px"><button class="back" data-go="#/raw?path=' +
+    encodeURIComponent(doc.path) + "&back=" + encodeURIComponent(back || "") + '">' +
+    "原文をひらく（" + esc(doc.path) + "）</button></p>"
+  );
+  return out.join("");
+}
+
+function bars(items, opts) {
+  var max = Math.max.apply(null, items.map(function (i) { return i.value; }).concat([1]));
+  return '<div class="bars">' + items.map(function (i) {
+    var w = Math.max(1.5, (i.value / max) * 100);
+    var name = i.go
+      ? '<button class="name" data-go="' + esc(i.go) + '">' + esc(i.name) + "</button>"
+      : '<span class="name">' + esc(i.name) + "</span>";
+    return '<div class="bar">' + name +
+      '<span class="track"><span class="fill' + (opts && opts.gold ? " gold" : "") +
+      '" style="width:' + w.toFixed(2) + '%"></span></span>' +
+      '<span class="num">' + esc(i.label != null ? i.label : num(i.value)) + "</span></div>";
+  }).join("") + "</div>";
+}
+
+// ---------------------------------------------------------------- 部屋
+
+var MENU = [
+  { key: "tsuyosa", label: "つよさ" },
+  { key: "tokugi", label: "とくぎ" },
+  { key: "nenpyo", label: "ねんぴょう" },
+  { key: "otsuge", label: "おつげ" },
+  { key: "fukuro", label: "ふくろ" },
+  { key: "ruula", label: "ルーラ" }
+];
+
+var views = {};
+
+views.tsuyosa = async function () {
+  var s = await get("/api/status");
+  var out = ['<h2 class="head">つよさ</h2>'];
+  out.push('<p class="lead">' + esc(s.doc.lead) + "</p>");
+  out.push('<div class="cards">' + s.tsuyosa.map(function (t) {
+    var got = /^([\d,]+)\s*(.*)$/.exec(t.value) || [null, t.value, ""];
+    return '<div class="card"><div class="k">' + esc(t.label) + "</div>" +
+      '<div class="v">' + esc(got[1]) + (got[2] ? " <small>" + esc(got[2]) + "</small>" : "") +
+      "</div></div>";
+  }).join("") + "</div>");
+
+  out.push('<h3 class="sub">' + esc(s.imaHead) + "</h3>");
+  out.push(bars(s.ima.map(function (i) {
+    return { name: i.name, value: i.count, go: "#/tokugi/" + encodeURIComponent(i.name) };
+  })));
+
+  out.push('<h3 class="sub">長くいっしょにいるもの</h3>');
+  out.push(bars(s.nagaku.map(function (x) {
+    return {
+      name: x.name, value: x.years, label: x.years + "年　" + x.first,
+      go: "#/tokugi/" + encodeURIComponent(x.name)
+    };
+  }), { gold: true }));
+  return out.join("");
+};
+
+views.tokugi = async function (arg) {
+  if (arg) {
+    var doc = await get("/api/tokugi?name=" + encodeURIComponent(arg));
+    if (!doc) return '<p class="err">そのとくぎは持っていない: ' + esc(arg) + "</p>";
+    return '<button class="back" data-go="#/tokugi">← とくぎ</button>' +
+      '<h2 class="head">' + esc(doc.title) + "</h2>" +
+      docHtml(doc, "#/tokugi/" + encodeURIComponent(arg));
+  }
+  var list = await get("/api/tokugi");
+  var maxYears = Math.max.apply(null, list.map(function (t) { return t.years; }).concat([1]));
+  return '<h2 class="head">とくぎ　' + num(list.length) + "</h2>" +
+    '<p class="lead">手が動いたファイルと書いた記事から起こしたもの。★は付き合いの長さ</p>' +
+    '<div class="grid">' + list.map(function (t) {
+      var star = Math.max(1, Math.round((t.years / maxYears) * 5));
+      return '<button class="tile" data-go="#/tokugi/' + encodeURIComponent(t.name) + '">' +
+        '<span class="n"><b>' + esc(t.name) + "</b>" +
+        '<span class="star">' + "★".repeat(star) + "☆".repeat(5 - star) + "</span></span>" +
+        '<div class="meta">' + t.years + "年　" + esc(t.first) + " 〜 " + esc(t.last) + "</div>" +
+        '<div class="meta">記事 ' + num(t.articles) + "　ファイル " + num(t.files) + "</div></button>";
+    }).join("") + "</div>";
+};
+
+views.nenpyo = async function (arg) {
+  if (arg) {
+    var doc = await get("/api/nenpyo?year=" + encodeURIComponent(arg));
+    if (!doc) return '<p class="err">その年はない: ' + esc(arg) + "</p>";
+    return '<button class="back" data-go="#/nenpyo">← ねんぴょう</button>' +
+      '<h2 class="head">' + esc(doc.title) + "</h2>" +
+      docHtml(doc, "#/nenpyo/" + encodeURIComponent(arg));
+  }
+  var s = await get("/api/status");
+  var out = ['<h2 class="head">ねんぴょう　' + s.ayumi.length + "年</h2>"];
+  out.push('<p class="lead">年を押すと、その年に何をしていたかへ</p>');
+  out.push('<h3 class="sub">コミット</h3>');
+  out.push(bars(s.ayumi.map(function (a) {
+    return { name: String(a.year), value: a.commits, go: "#/nenpyo/" + a.year };
+  })));
+  out.push('<h3 class="sub">記事</h3>');
+  out.push(bars(s.ayumi.map(function (a) {
+    return { name: String(a.year), value: a.articles, go: "#/nenpyo/" + a.year };
+  }), { gold: true }));
+  out.push('<h3 class="sub">主に</h3>');
+  out.push('<div class="body"><table><thead><tr><th>年</th><th>主に</th></tr></thead><tbody>' +
+    s.ayumi.map(function (a) {
+      return "<tr><td>" + a.year + "</td><td>" + esc(a.main.join("、")) + "</td></tr>";
+    }).join("") + "</tbody></table></div>");
+  return out.join("");
+};
+
+views.otsuge = async function (arg) {
+  if (arg) {
+    var doc = await get("/api/otsuge?week=" + encodeURIComponent(arg));
+    if (!doc) return '<p class="err">その週のおつげはない: ' + esc(arg) + "</p>";
+    return '<button class="back" data-go="#/otsuge">← おつげ</button>' +
+      '<h2 class="head">' + esc(doc.title) + "</h2>" +
+      docHtml(doc, "#/otsuge/" + encodeURIComponent(arg));
+  }
+  var list = await get("/api/otsuge");
+  var byYear = new Map();
+  list.forEach(function (w) {
+    var y = w.week.slice(0, 4);
+    if (!byYear.has(y)) byYear.set(y, []);
+    byYear.get(y).push(w);
+  });
+  var max = Math.max.apply(null, list.map(function (w) { return w.commits; }).concat([1]));
+  var rows = [];
+  Array.from(byYear.keys()).sort().reverse().forEach(function (y) {
+    rows.push('<div class="yearrow"><span class="y">' + esc(y) + "</span>" +
+      '<span class="weeks">' + byYear.get(y).map(function (w) {
+        var on = w.commits ? Math.min(4, Math.ceil((w.commits / max) * 4)) : 0;
+        return '<button data-on="' + on + '" data-go="#/otsuge/' + encodeURIComponent(w.week) +
+          '" title="' + esc(w.week + "　" + w.from + " 〜 " + w.to + "　コミット " + num(w.commits)) +
+          '"></button>';
+      }).join("") + "</span></div>");
+  });
+  return '<h2 class="head">おつげ　' + num(list.length) + "週</h2>" +
+    '<p class="lead">' + esc(list[0].week) + " 〜 " + esc(list[list.length - 1].week) +
+    "　濃いほどコミットが多い週。マスを押すとその週のおつげへ</p>" +
+    '<div class="years">' + rows.join("") + "</div>";
+};
+
+views.fukuro = async function () {
+  var list = await get("/api/fukuro");
+  return '<h2 class="head">ふくろ　' + num(list.length) + "プロジェクト</h2>" +
+    '<p class="lead">会話とコミットから畳んだ台帳。新しく触ったものが上</p>' +
+    '<div class="grid">' + list.map(function (p) {
+      return '<button class="tile" data-go="#/raw?path=' + encodeURIComponent(p.path) +
+        "&back=" + encodeURIComponent("#/fukuro") + '">' +
+        '<span class="n"><b>' + esc(p.name) + "</b></span>" +
+        '<div class="meta">' + esc(p.first) + " 〜 " + esc(p.last) + "</div>" +
+        '<div class="meta">会話 ' + num(p.sessions) + "　コミット " + num(p.commits) + "</div></button>";
+    }).join("") + "</div>";
+};
+
+var ROOMS = ["bouken", "kotonoha", "soto", "teato", "fukuro", "status", "otsuge", "reading-notes"];
+var seek = { q: "", room: "" };
+
+views.ruula = async function () {
+  return '<h2 class="head">ルーラ</h2>' +
+    '<p class="lead">行ったことのある場所にしか飛べない。拠点に写した場所だけが引ける</p>' +
+    '<div class="seek"><input type="search" id="q" placeholder="さがすことば（空白で AND）" value="' +
+    esc(seek.q) + '" autocomplete="off"></div>' +
+    '<div class="rooms" id="rooms">' +
+    ['<button data-room="" aria-pressed="' + (seek.room === "") + '">ぜんぶ</button>'].concat(
+      ROOMS.map(function (r) {
+        return '<button data-room="' + r + '" aria-pressed="' + (seek.room === r) + '">' + r + "</button>";
+      })).join("") + "</div>" +
+    '<div class="hits" id="hits"></div>';
+};
+
+/** 一致したところを光らせる。印を先に入れて esc すると印まで消えるので、切って組む */
+function mark(text, words) {
+  var uniq = Array.from(new Set(words.filter(Boolean)))
+    .sort(function (a, b) { return b.length - a.length; })
+    .map(function (w) { return w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); });
+  if (!uniq.length) return esc(text);
+  var re = new RegExp(uniq.join("|"), "gi");
+  var out = "";
+  var last = 0;
+  var got;
+  while ((got = re.exec(text)) !== null) {
+    if (got[0] === "") { re.lastIndex += 1; continue; }
+    out += esc(text.slice(last, got.index)) + "<mark>" + esc(got[0]) + "</mark>";
+    last = got.index + got[0].length;
+  }
+  return out + esc(text.slice(last));
+}
+
+async function runSeek() {
+  var hits = $("#hits");
+  if (!hits) return;
+  if (!seek.q.trim()) { hits.innerHTML = ""; return; }
+  hits.innerHTML = '<p class="muted">とんでいる…</p>';
+  var url = "/api/ruula?q=" + encodeURIComponent(seek.q) +
+    (seek.room ? "&room=" + encodeURIComponent(seek.room) : "");
+  try {
+    var got = await get(url);
+    if (!got.rows.length) { hits.innerHTML = '<p class="muted">みつかりませんでした。</p>'; return; }
+    var words = seek.q.split(/\s+/).filter(Boolean);
+    hits.innerHTML =
+      (got.fallback ? '<p class="muted">（3文字未満の語があるので部分一致で引きました）</p>' : "") +
+      got.rows.map(function (r) {
+        var where = [r.date, r.project, r.room].filter(Boolean).join(" · ");
+        return '<button class="hit" data-go="#/raw?path=' + encodeURIComponent(r.path) +
+          "&back=" + encodeURIComponent("#/ruula") + '">' +
+          '<div class="where">' + esc(where) + "</div>" +
+          '<div class="h">' + esc(r.heading || "（見出しなし）") + "</div>" +
+          '<div class="s">' + mark(r.snippet, words) + "</div></button>";
+      }).join("");
+  } catch (err) {
+    hits.innerHTML = '<p class="err">' + esc(err.message) + "</p>";
+  }
+}
+
+views.raw = async function (arg, params) {
+  var got = await get("/api/raw?path=" + encodeURIComponent(arg));
+  var back = params.get("back") || "#/tsuyosa";
+  return '<button class="back" data-go="' + esc(back) + '">← もどる</button>' +
+    '<h2 class="head">' + esc(got.path) + "</h2>" +
+    '<div class="raw">' + esc(got.text) + "</div>";
+};
+
+// ---------------------------------------------------------------- 歩く
+
+function route() {
+  var hash = location.hash.replace(/^#\/?/, "");
+  var qs = "";
+  var at = hash.indexOf("?");
+  if (at >= 0) { qs = hash.slice(at + 1); hash = hash.slice(0, at); }
+  var params = new URLSearchParams(qs);
+  var parts = hash.split("/").map(decodeURIComponent);
+  var key = parts[0] || "tsuyosa";
+  var arg = parts.slice(1).join("/");
+  if (key === "raw") arg = params.get("path") || "";
+  return { key: key, arg: arg, params: params };
+}
+
+async function render() {
+  var r = route();
+  var view = views[r.key] || views.tsuyosa;
+  var main = $("#view");
+  document.querySelectorAll("nav.menu button").forEach(function (b) {
+    b.setAttribute("aria-current", String(b.dataset.key === r.key));
+  });
+  try {
+    main.innerHTML = await view(r.arg, r.params);
+  } catch (err) {
+    main.innerHTML = '<p class="err">' + esc(err.message) + "</p>";
+  }
+  if (r.key === "ruula") {
+    var q = $("#q");
+    q.focus();
+    q.setSelectionRange(q.value.length, q.value.length);
+    runSeek();
+  }
+}
+
+function go(hash) {
+  if (location.hash === hash) render();
+  else location.hash = hash;
+}
+
+document.addEventListener("click", function (ev) {
+  var target = ev.target.closest("[data-go]");
+  if (target) { ev.preventDefault(); go(target.dataset.go); return; }
+  var room = ev.target.closest("[data-room]");
+  if (room) {
+    seek.room = room.dataset.room;
+    document.querySelectorAll("#rooms button").forEach(function (b) {
+      b.setAttribute("aria-pressed", String(b.dataset.room === seek.room));
+    });
+    runSeek();
+  }
+});
+
+var typing = null;
+document.addEventListener("input", function (ev) {
+  if (ev.target.id !== "q") return;
+  seek.q = ev.target.value;
+  clearTimeout(typing);
+  typing = setTimeout(runSeek, 220);
+});
+
+// ↑↓でコマンドを選ぶ。`/` でルーラへ
+document.addEventListener("keydown", function (ev) {
+  var inInput = ev.target.tagName === "INPUT";
+  if (ev.key === "/" && !inInput) { ev.preventDefault(); go("#/ruula"); return; }
+  if (ev.key === "Escape") { if (inInput) ev.target.blur(); return; }
+  if (inInput || ev.metaKey || ev.ctrlKey || ev.altKey) return;
+  if (ev.key !== "ArrowDown" && ev.key !== "ArrowUp") return;
+  ev.preventDefault();
+  var at = MENU.findIndex(function (m) { return m.key === route().key; });
+  if (at < 0) at = 0;
+  var next = (at + (ev.key === "ArrowDown" ? 1 : MENU.length - 1)) % MENU.length;
+  go("#/" + MENU[next].key);
+});
+
+window.addEventListener("hashchange", render);
+
+(async function () {
+  $("#menu").innerHTML = MENU.map(function (m) {
+    return '<button data-key="' + m.key + '" data-go="#/' + m.key + '">' +
+      '<span class="cur">▶</span>' + m.label + "</button>";
+  }).join("");
+  try {
+    var s = await get("/api/status");
+    $("#span").innerHTML = esc(s.first) + " 〜 " + esc(s.last) +
+      "　<b>" + s.span + "年</b>　とくぎ <b>" + num(s.tokugi) + "</b>";
+  } catch (err) {
+    $("#span").innerHTML = '<span class="err">' + esc(err.message) + "</span>";
+  }
+  render();
+})();
+</script>
+</body>
+</html>
