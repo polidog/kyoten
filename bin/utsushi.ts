@@ -14,10 +14,11 @@
  *     utsushi.ts              # 全部を写す
  *     utsushi.ts --dry-run    # 何が書かれるかだけ見る
  *     utsushi.ts --since 2026-08-01
+ *     utsushi.ts --file <jsonl>   # その1本だけ写す（すずのおとの SessionEnd 用）
  */
 
 import { existsSync } from "node:fs";
-import { basename, dirname, join } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 
 import {
   CLAUDE_PROJECTS,
@@ -318,16 +319,27 @@ function safeName(stem: string): string {
 }
 
 function main(): number {
-  const args = parseArgs(process.argv.slice(2), ["dry-run", "quiet"], ["since"]);
+  const args = parseArgs(process.argv.slice(2), ["dry-run", "quiet"], ["since", "file"]);
   const since = parseSince(args.values.since);
   if (since === undefined) return 2;
 
   const jobs: [string, "claude" | "codex"][] = [];
-  if (existsSync(CLAUDE_PROJECTS)) {
-    for (const p of listFiles(CLAUDE_PROJECTS, ".jsonl")) jobs.push([p, "claude"]);
-  }
-  if (existsSync(CODEX_SESSIONS)) {
-    for (const p of listFiles(CODEX_SESSIONS, ".jsonl")) jobs.push([p, "codex"]);
+  if (args.values.file !== undefined) {
+    // 1本だけ写す。セッションが終わったその場で呼ぶための口で、
+    // 名前の衝突（罠1）はここでは見ない —— 全部を写す夜の便が刻み直す。
+    const one = resolve(args.values.file);
+    if (!existsSync(one)) {
+      console.error(`そのファイルがありません: ${one}`);
+      return 2;
+    }
+    jobs.push([one, one.startsWith(CODEX_SESSIONS) ? "codex" : "claude"]);
+  } else {
+    if (existsSync(CLAUDE_PROJECTS)) {
+      for (const p of listFiles(CLAUDE_PROJECTS, ".jsonl")) jobs.push([p, "claude"]);
+    }
+    if (existsSync(CODEX_SESSIONS)) {
+      for (const p of listFiles(CODEX_SESSIONS, ".jsonl")) jobs.push([p, "codex"]);
+    }
   }
 
   const stats: Record<string, number> = {
