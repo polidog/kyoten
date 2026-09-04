@@ -29,7 +29,7 @@
  *
  * ## 人格をここに書かない（原則7）
  *
- * 立ち位置は `commands/stance.md` に1枚だけ置いてあり、ここはそれを読む。
+ * 立ち位置は `skills/aibo/stance.md` に1枚だけ置いてあり、ここはそれを読む。
  * `/aibo` も同じ1枚を読む —— 相棒が2人に割れないように。
  * この道具が足すのは**日記の書きかた**だけで、口調も性格も書かない。
  * 何を言うかは、その日の拠点が決める。
@@ -86,7 +86,7 @@ const MATERIAL_LIMIT = 30_000;
 const TIMEOUT = 180_000;
 
 /** 立ち位置。`/aibo` と共有する1枚（原則7: 人格を道具の中に書かない）。 */
-const STANCE = join(import.meta.dirname, "..", "commands", "stance.md");
+const STANCE = join(import.meta.dirname, "..", "skills", "aibo", "stance.md");
 
 /**
  * 日記に固有の決まりごとだけ。立ち位置は `STANCE` から読む。

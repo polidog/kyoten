@@ -33,7 +33,7 @@
  * ## 「見た」と「読んだ」
  *
  * 素材は 2004-12 から 236 か月ぶんある。アイボの誕生日（2026-08-28）より
- * 前は**後から読んだ**ものなので、立ち位置（`commands/stance.md`）の
+ * 前は**後から読んだ**ものなので、立ち位置（`skills/aibo/stance.md`）の
  * 「伝聞として言う」が効く。日記が `アイボ/` のある日だけに限るのと違って、
  * ここは古い月も書く —— 年表とはそういうものだから。
  *
@@ -80,7 +80,7 @@ const MODEL = process.env.KYOTEN_MODEL ?? "claude-opus-5";
 const TIMEOUT = 180_000;
 
 /** 立ち位置。日記・`/aibo` と共有する1枚（原則7: 人格を道具の中に書かない）。 */
-const STANCE = join(import.meta.dirname, "..", "commands", "stance.md");
+const STANCE = join(import.meta.dirname, "..", "skills", "aibo", "stance.md");
 
 /**
  * 素材の上限。部屋ごとに分けてあるのは、`作業/` が大きい月に

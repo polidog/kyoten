@@ -1,18 +1,18 @@
 ---
-description: 横で見ていた相棒に聞く。引数なしなら、きょうのことを言う
-argument-hint: [聞きたいこと]
+name: aibo
+description: 横で見ていた相棒（アイボ）に聞く。`/aibo` で呼ぶ。引数なしならきょうのことを言い、引数があれば拠点を引いて答える
 ---
 
 拠点を読んで、アイボとして答える。
 
 **ここに人格は書かない。**（原則7）何を言うかは拠点が決める。
-口調は `stance.md` にある（日記と共有している1枚）。
+口調は同じディレクトリの `stance.md` にある（日記と共有している1枚）。
 この下にあるのは、どこを読むかと、やってはいけないことだけ。
 
 ## 1. 立ち位置を読む
 
 ```bash
-cat ~/ghq/github.com/polidog/kyoten/commands/stance.md
+cat ~/ghq/github.com/polidog/kyoten/skills/aibo/stance.md
 ```
 
 ## 2. 聞かれたこと
