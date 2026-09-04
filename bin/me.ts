@@ -1,21 +1,21 @@
 #!/usr/bin/env node
 /**
- * kotonoha — ことのは（自分の発言だけを抜き出す）
+ * me — polidog の発言だけを抜き出す
  *
  * Claude Code と Codex の jsonl から polidog 本人の発話だけを拾い、
- * 日付ごとに時系列で束ねる。ぼうけんのしょ (bouken/) の整形には依存せず、
+ * 日付ごとに時系列で束ねる。`会話/` の整形には依存せず、
  * 原本の jsonl から直接抜く。
  *
- * 掟:
+ * 原則:
  *   - 決定論的: 同じ入力なら必ず同じ出力。生成日時などの揺れる値は書かない。
  *   - 冪等: 内容が変わらなければファイルに触れない (mtime も動かさない)。
  *   - 原文ママ: 発話は加工しない。
  *
  * 使い方:
- *     kotonoha.ts                 # 全部を抜く
- *     kotonoha.ts --dry-run       # 書かずに結果だけ
- *     kotonoha.ts --since 2026-08-01
- *     kotonoha.ts --quiet         # 1行だけ（定時便用）
+ *     me.ts                 # 全部を抜く
+ *     me.ts --dry-run       # 書かずに結果だけ
+ *     me.ts --since 2026-08-01
+ *     me.ts --quiet         # 1行だけ（定時便用）
  */
 
 import { createHash } from "node:crypto";
@@ -38,7 +38,7 @@ import {
   ymd,
   ym,
   type WriteState,
-} from "./dougu.ts";
+} from "./util.ts";
 import { listFiles, parseArgs, parseSince } from "./cli.ts";
 
 /** 発話がこれを超えたら省略する。原本は jsonl に残る */
@@ -214,13 +214,13 @@ function renderDay(date: string, items: readonly Utterance[]): string {
   }
 
   const head = frontmatter({
-    room: "kotonoha",
+    room: "自分",
     date,
     utterances: items.length,
     projects: [...projects].sort().join(", "),
     sources: [...sources].sort().join(", "),
   });
-  return head + `\n\n# ${date} ことのは\n\n` + body.join("\n\n") + "\n";
+  return head + `\n\n# ${date} の発言\n\n` + body.join("\n\n") + "\n";
 }
 
 function main(): number {
@@ -266,7 +266,7 @@ function main(): number {
   let total = 0;
   for (const date of [...days.keys()].sort()) {
     const items = days.get(date)!.sort(compare);
-    const out = join(KYOTEN, "kotonoha", date.slice(0, 7), `${date}.md`);
+    const out = join(KYOTEN, "自分", date.slice(0, 7), `${date}.md`);
     stats[writeIfChanged(out, renderDay(date, items), args.flags["dry-run"])] += 1;
     total += items.length;
   }
@@ -274,18 +274,18 @@ function main(): number {
   const nDays = stats.new + stats.updated + stats.same;
   if (args.flags.quiet) {
     console.log(
-      `kotonoha: ${nDays}日 (new ${stats.new} / upd ${stats.updated} ` +
+      `me: ${nDays}日 (new ${stats.new} / upd ${stats.updated} ` +
         `/ same ${stats.same}) 発言 ${n(total)}`,
     );
   } else {
     if (args.flags["dry-run"]) console.log("（書かずに確認）");
-    console.log(`  ことのは     : ${n(nDays)} 日ぶん`);
+    console.log(`  自分         : ${n(nDays)} 日ぶん`);
     console.log(`    あたらしい : ${n(stats.new)}`);
     console.log(`    かきかえ   : ${n(stats.updated)}`);
     console.log(`    かわらず   : ${n(stats.same)}`);
     if (failed) console.log(`    しっぱい   : ${n(failed)}`);
     console.log(`  はつげん     : ${n(total)}`);
-    console.log(`  ばしょ : ${join(KYOTEN, "kotonoha")}`);
+    console.log(`  ばしょ : ${join(KYOTEN, "自分")}`);
   }
 
   return failed ? 1 : 0;

@@ -1,29 +1,29 @@
 #!/usr/bin/env node
 /**
- * suzu — すずのおと（会話の合間に鳴るもの）
+ * hook — 会話の合間に拠点を思い出させる
  *
- * よるのとばりが「溜める」係なら、こちらは「思い出させる」係。
+ * 定時便が「溜める」係なら、こちらは「思い出させる」係。
  * 溜めた記憶は、引く動機がないと使われない。2階まで建てたのに、
- * こちらから見に行かないと何も返ってこないのでは、掟4で挙げた
+ * こちらから見に行かないと何も返ってこないのでは、原則4で挙げた
  * 止まった3つと同じことになる。
  *
  * Claude Code の hooks から呼ばれる。stdin に来る JSON の
  * `hook_event_name` で鳴らし分ける。
  *
- *     SessionStart      拠点の地図といちばん新しいおつげを配る
- *     UserPromptSubmit  過去を指す言い回しを見つけたらルーラを促す
- *     SessionEnd        その場でぼうけんのしょに写す（夜まで待たない）
+ *     SessionStart      拠点の地図といちばん新しい週報を配る
+ *     UserPromptSubmit  過去を指す言い回しを見つけたら検索を促す
+ *     SessionEnd        その場で `会話/` に写す（夜まで待たない）
  *
- * 掟:
- *   - 何があっても 0 で終わる。すずが鳴らないのは構わないが、すずのせいで
+ * 原則:
+ *   - 何があっても 0 で終わる。何も出ないのは構わないが、ここが原因で
  *     セッションが止まるのはいちばん困る。例外は全部飲んで黙る。
- *   - 拠点には書かない。写しは utsushi に渡す（掟5: 書き込み口を絞る）。
- *   - 拠点の中身をそのまま配るのは、おつげの見出しと数だけにする。会話原文は
+ *   - 拠点には書かない。写しは sessions.ts に渡す（原則5: 書き込み口を絞る）。
+ *   - 拠点の中身をそのまま配るのは、週報の見出しと数だけにする。会話原文は
  *     渡さない（そこに実名もメールアドレスも入っている）。
  *
  * 使い方（手で確かめるとき）:
- *     echo '{"hook_event_name":"SessionStart"}' | bin/suzu.ts
- *     echo '{"hook_event_name":"UserPromptSubmit","prompt":"あの話どこだっけ"}' | bin/suzu.ts
+ *     echo '{"hook_event_name":"SessionStart"}' | bin/hook.ts
+ *     echo '{"hook_event_name":"UserPromptSubmit","prompt":"あの話どこだっけ"}' | bin/hook.ts
  */
 
 import { existsSync, readFileSync } from "node:fs";
@@ -31,22 +31,22 @@ import { spawnSync } from "node:child_process";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
-import { KYOTEN, n, slugFromCwd } from "./dougu.ts";
-import { bullets, fukuroList, otsugeList, readDoc, section } from "./yomi.ts";
-import { DB, ROOMS } from "./ruula.ts";
+import { KYOTEN, n, slugFromCwd } from "./util.ts";
+import { bullets, entityList, readDoc, section, weeklyList } from "./read.ts";
+import { DB, ROOMS } from "./search.ts";
 import { listFiles } from "./cli.ts";
 
-const RUULA = join(import.meta.dirname, "ruula.ts");
-const UTSUSHI = join(import.meta.dirname, "utsushi.ts");
+const SEARCH = join(import.meta.dirname, "search.ts");
+const SESSIONS = join(import.meta.dirname, "sessions.ts");
 
 /**
  * 過去を指す言い回し。
  *
  * 「前に」「今日」のような、ふつうの文にいくらでも出てくる語は入れない
- * （`bin/suzu.ts --tameshi` で ことのは に当てて数を見られる）。ここが
+ * （`bin/hook.ts --check` で `自分/` に当てて数を見られる）。ここが
  * ゆるいと毎プロンプト鳴って、すぐ読み飛ばされるようになる。
  */
-const KAKO: readonly RegExp[] = [
+const PAST: readonly RegExp[] = [
   /だっけ/,
   /あの(?:話|とき|時|件|やつ|コード|ファイル|リポジトリ)/,
   /例の/,
@@ -61,14 +61,14 @@ const KAKO: readonly RegExp[] = [
 ];
 
 function detect(prompt: string): string | null {
-  for (const re of KAKO) {
+  for (const re of PAST) {
     const got = re.exec(prompt);
     if (got) return got[0];
   }
   return null;
 }
 
-// ---------------------------------------------------------------- すずの音
+// ---------------------------------------------------------------- 鳴らす
 
 /** hooks の口に合わせて返す。additionalContext がそのまま会話に入る。 */
 function ring(event: string, context: string): void {
@@ -82,7 +82,7 @@ function mapOfKyoten(): string[] {
 
   if (existsSync(DB)) {
     try {
-      // 刻み直しはしない。すずは待たせてよい場所ではないので、あるものだけ読む
+      // 刻み直しはしない。ここは待たせてよい場所ではないので、あるものだけ読む
       const con = new DatabaseSync(DB, { readOnly: true });
       const meta = new Map<string, string>();
       for (const r of con.prepare("SELECT k, v FROM meta").all() as { k: string; v: string }[]) {
@@ -96,7 +96,7 @@ function mapOfKyoten(): string[] {
           (last ? `（${last} まで刻んである）` : ""),
       );
     } catch {
-      // 索引が壊れていても、おつげは配れる
+      // 索引が壊れていても、週報は配れる
     }
   }
   return lines;
@@ -108,35 +108,35 @@ function sessionStart(payload: Record<string, unknown>): void {
   const lines = mapOfKyoten();
 
   // いま居る場所について拠点が何を憶えているか。ここが「引く動機」になる。
-  // ふくろの名前は `<user>/<repo>` の形のものだけ見る（罠18: `Work` や
+  // 事典の名前は `<user>/<repo>` の形のものだけ見る（落とし穴18: `Work` や
   // `_home` はただの単語なので、名前で照らし合わせる相手にならない）
   const slug = slugFromCwd(typeof payload.cwd === "string" ? payload.cwd : "");
   if (slug.includes("/")) {
-    const koko = fukuroList().find((f) => f.name === slug);
-    if (koko) {
+    const here = entityList().find((f) => f.name === slug);
+    if (here) {
       lines.push(
-        `ここ（${koko.name}）は拠点にある: ${koko.first} 〜 ${koko.last}・` +
-          `会話 ${n(koko.sessions)}・コミット ${n(koko.commits)} → ${koko.path}`,
+        `ここ（${here.name}）は拠点にある: ${here.first} 〜 ${here.last}・` +
+          `会話 ${n(here.sessions)}・コミット ${n(here.commits)} → ${here.path}`,
       );
     }
   }
 
-  const head = otsugeList().at(-1);
+  const head = weeklyList().at(-1);
   if (head) {
     const doc = readDoc(join(KYOTEN, head.path));
-    lines.push(`いちばん新しいおつげ ${head.week}（${head.from} 〜 ${head.to}）`);
-    const ima = bullets(section(doc, "今週"))[0];
-    if (ima) lines.push(`  ${ima}`);
-    const tomatte = bullets(section(doc, "止まっているもの"))[0];
-    if (tomatte) lines.push(`  止まっているもの: ${tomatte}`);
+    lines.push(`いちばん新しい週報 ${head.week}（${head.from} 〜 ${head.to}）`);
+    const now = bullets(section(doc, "今週"))[0];
+    if (now) lines.push(`  ${now}`);
+    const stale = bullets(section(doc, "止まっているもの"))[0];
+    if (stale) lines.push(`  止まっているもの: ${stale}`);
     lines.push(`  ぜんぶ読む: ${head.path}`);
   }
 
   if (!lines.length) return;
 
   lines.push(
-    "過去を引くときはルーラを使う（行ったことのある場所にしか飛べない）:",
-    `  ${RUULA} "語" [--room ${ROOMS.join("|")}] [--project polidog/kyoten] [--since YYYY-MM-DD]`,
+    "過去を引くときは拠点の全文検索を使う（写した場所だけが引ける）:",
+    `  ${SEARCH} "語" [--room ${ROOMS.join("|")}] [--project polidog/kyoten] [--since YYYY-MM-DD]`,
   );
 
   ring("SessionStart", lines.join("\n"));
@@ -150,17 +150,17 @@ function userPromptSubmit(payload: Record<string, unknown>): void {
 
   ring(
     "UserPromptSubmit",
-    `そのことなら まちのひとが しっているかもしれない（「${hit}」）。\n` +
-      `拠点に写しがあるので、憶測で答える前にルーラで引くこと:\n` +
-      `  ${RUULA} "語" [--room ${ROOMS.join("|")}] [--project <user>/<repo>] [--since YYYY-MM-DD]\n` +
+    `過去を指す言い回しがある（「${hit}」）。\n` +
+      `拠点に写しがあるので、憶測で答える前に引くこと:\n` +
+      `  ${SEARCH} "語" [--room ${ROOMS.join("|")}] [--project <user>/<repo>] [--since YYYY-MM-DD]\n` +
       "引けなかったら「拠点には無い」と言う。無いことも観測結果になる。",
   );
 }
 
 /**
- * 終わったその場でぼうけんのしょに写す。
+ * 終わったその場で `会話/` に写す。
  *
- * よるのとばりは毎晩 03:00 に全部を写し直すので、ここが落ちても写しは
+ * 定時便は毎晩 03:00 に全部を写し直すので、ここが落ちても写しは
  * いずれ取れる。それでもここで写すのは、`cleanupPeriodDays` を落とした
  * 機械や、写す前にログを消される場合に備えるため。
  */
@@ -168,9 +168,9 @@ function sessionEnd(payload: Record<string, unknown>): void {
   const path = typeof payload.transcript_path === "string" ? payload.transcript_path : "";
   if (!path || !existsSync(path) || !existsSync(KYOTEN)) return;
 
-  // 罠25: execFileSync は成功時の stderr を返さない。ここでは出力を使わないが
+  // 落とし穴25: execFileSync は成功時の stderr を返さない。ここでは出力を使わないが
   // 作法を揃えておく。失敗しても黙る（夜が拾う）
-  spawnSync(process.execPath, [UTSUSHI, "--file", path, "--quiet"], {
+  spawnSync(process.execPath, [SESSIONS, "--file", path, "--quiet"], {
     stdio: "ignore",
     timeout: 20_000,
   });
@@ -178,9 +178,9 @@ function sessionEnd(payload: Record<string, unknown>): void {
 
 // ---------------------------------------------------------------- ためし
 
-/** ことのはに当てて、UserPromptSubmit が何割で鳴るかを数える。 */
-function tameshi(): number {
-  const paths = listFiles(join(KYOTEN, "kotonoha"), ".md");
+/** `自分/` に当てて、UserPromptSubmit が何割で鳴るかを数える。 */
+function check(): number {
+  const paths = listFiles(join(KYOTEN, "自分"), ".md");
   let total = 0;
   let hit = 0;
   const counts = new Map<string, number>();
@@ -195,7 +195,7 @@ function tameshi(): number {
       }
     }
   }
-  console.log(`ことのは ${n(total)} 発言中 ${n(hit)} 件で鳴る（${(hit / total * 100).toFixed(1)}%）`);
+  console.log(`発言 ${n(total)} 件中 ${n(hit)} 件で鳴る（${(hit / total * 100).toFixed(1)}%）`);
   for (const [k, v] of [...counts].sort((a, b) => b[1] - a[1])) {
     console.log(`  ${k.padEnd(12)} ${n(v)}`);
   }
@@ -205,13 +205,13 @@ function tameshi(): number {
 // ---------------------------------------------------------------- main
 
 function main(): number {
-  if (process.argv.includes("--tameshi")) return tameshi();
+  if (process.argv.includes("--check")) return check();
 
   if (process.stdin.isTTY) {
     // 端末から素で叩かれた。stdin を待つと黙って止まって見える
-    console.log("すずのおとは hooks から stdin で呼ばれます。");
-    console.log("  echo '{\"hook_event_name\":\"SessionStart\"}' | bin/suzu.ts");
-    console.log("  bin/suzu.ts --tameshi   # ことのはに当てて、何割で鳴るか数える");
+    console.log("hook.ts は Claude Code の hooks から stdin で呼ばれます。");
+    console.log("  echo '{\"hook_event_name\":\"SessionStart\"}' | bin/hook.ts");
+    console.log("  bin/hook.ts --check   # `自分/` に当てて、何割で鳴るか数える");
     return 0;
   }
 
@@ -230,7 +230,7 @@ function main(): number {
     else if (event === "UserPromptSubmit") userPromptSubmit(payload);
     else if (event === "SessionEnd") sessionEnd(payload);
   } catch {
-    // すずのせいでセッションを止めない
+    // ここが原因でセッションを止めない
   }
   return 0;
 }

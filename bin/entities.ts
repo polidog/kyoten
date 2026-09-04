@@ -1,25 +1,25 @@
 #!/usr/bin/env node
 /**
- * fukuro — ふくろ（長期記憶）
+ * entities — 事典（長期記憶）
  *
  * 拠点に溜まったものを、**プロジェクトごとに1枚**へ畳み直す。
- * ぼうけんのしょ・ことのは・てのあと・そとのこえは時間で並んでいるので、
+ * 会話・自分・作業・投稿は時間で並んでいるので、
  * 「このプロジェクトで何をしていたのか」を見るには何十日ぶんも辿ることに
- * なる。ふくろはその横串。
+ * なる。事典はその横串。
  *
- * 出力は `fukuro/project/<name>.md`。素材はすべて**拠点の中**にある
- * （jsonl や git を直接見にいかない）—— 拠点が正本で、ふくろはその畳み方だ、
- * という関係を保つため。順番は utsushi → kotonoha → teato → fukuro。
+ * 出力は `事典/プロジェクト/<name>.md`。素材はすべて**拠点の中**にある
+ * （jsonl や git を直接見にいかない）—— 拠点が正本で、事典はその畳み方だ、
+ * という関係を保つため。順番は sessions → me → work → entities。
  *
- * 掟:
+ * 原則:
  *   - 決定論的: 同じ拠点なら必ず同じ出力。
  *   - 冪等: 内容が変わらなければファイルに触れない。
  *   - 手で書かせない: ここに人が書き足す欄は作らない。増えるのは素材の側。
  *
  * 使い方:
- *     fukuro.ts                   # 全部
- *     fukuro.ts --dry-run
- *     fukuro.ts --quiet
+ *     entities.ts                   # 全部
+ *     entities.ts --dry-run
+ *     entities.ts --quiet
  */
 
 import { existsSync } from "node:fs";
@@ -34,15 +34,15 @@ import {
   splitFrontmatter,
   writeIfChanged,
   type WriteState,
-} from "./dougu.ts";
+} from "./util.ts";
 import { listFiles, parseArgs } from "./cli.ts";
 
-const ROOM = join(KYOTEN, "fukuro", "project");
+const ROOM = join(KYOTEN, "事典", "プロジェクト");
 
 /**
  * よく出てくる語の数と、拾う語の形。日本語を分かち書きせずに済ませるため、
  * 「2文字以上のカタカナ」「2文字以上の漢字」「3文字以上の英数字」を語と
- * みなす。形態素解析を入れれば精度は上がるが、依存を増やさない（掟6）。
+ * みなす。形態素解析を入れれば精度は上がるが、依存を増やさない（原則6）。
  */
 const WORDS_SHOWN = 20;
 const RE_WORD = /[ァ-ヶー]{2,}|[一-龥]{2,}|[A-Za-z][A-Za-z0-9_.-]{2,}/gu;
@@ -62,7 +62,7 @@ const STOPWORDS = new Set([
 ]);
 
 /**
- * そとのこえの本文でプロジェクトを探すときの手がかり。`polidog/kyoten` の
+ * 投稿の本文でプロジェクトを探すときの手がかり。`polidog/kyoten` の
  * 記事が `kyoten` としか書かれていないことが多いので、名前の末尾も見る。
  * 短すぎる名前（`web` など）は普通の単語に当たるので使わない。
  */
@@ -83,7 +83,7 @@ class Project {
   last = "";
   commits = 0;
   troubles = 0;
-  readonly kotonohaDays: string[] = [];
+  readonly mineDays: string[] = [];
   readonly soto: [string, string, string][] = [];
 
   constructor(name: string) {
@@ -101,8 +101,8 @@ class Project {
     this.troubles += other.troubles;
     this.saw(other.first);
     this.saw(other.last);
-    for (const date of other.kotonohaDays) {
-      if (!this.kotonohaDays.includes(date)) this.kotonohaDays.push(date);
+    for (const date of other.mineDays) {
+      if (!this.mineDays.includes(date)) this.mineDays.push(date);
     }
     this.soto.push(...other.soto);
   }
@@ -143,9 +143,9 @@ function intOf(value: string | undefined): number {
 
 // ---------------------------------------------------------------- 素材を読む
 
-/** ぼうけんのしょ。1ファイル = 1セッション。 */
-function scanBouken(projects: Projects): void {
-  const root = join(KYOTEN, "bouken");
+/** `会話/`。1ファイル = 1セッション。 */
+function scanSessions(projects: Projects): void {
+  const root = join(KYOTEN, "会話");
   if (!existsSync(root)) return;
 
   for (const path of listFiles(root, ".md")) {
@@ -168,13 +168,13 @@ function scanBouken(projects: Projects): void {
 }
 
 /**
- * てのあと。日ごとのファイルを、プロジェクトの見出しで割って数える。
+ * `作業/`。日ごとのファイルを、プロジェクトの見出しで割って数える。
  *
  * frontmatter の `projects` はその日に触れた顔ぶれしか持たないので、
  * 件数は本文から数える（`## <project>` の下の `- \`sha\` 件名` の数）。
  */
-function scanTeato(projects: Projects, texts: Texts): void {
-  const root = join(KYOTEN, "teato");
+function scanWork(projects: Projects, texts: Texts): void {
+  const root = join(KYOTEN, "作業");
   if (!existsSync(root)) return;
 
   const headProject = /^## ([^\n]+)$/;
@@ -204,7 +204,7 @@ function scanTeato(projects: Projects, texts: Texts): void {
 
       if (section === "つくった" && commitLine.test(line)) {
         get(projects, name).commits += 1;
-        // コミットの件名も本人が書いた言葉。ことのはと同じ資格で
+        // コミットの件名も本人が書いた言葉。`自分/` と同じ資格で
         // 「よく出てくる語」の素材にする（発言が少ないプロジェクトほど、
         // 何をしていたかはコミットの側に残っている）。
         const at = line.indexOf("` ");
@@ -220,14 +220,14 @@ function scanTeato(projects: Projects, texts: Texts): void {
 }
 
 /**
- * ことのは。プロジェクトごとの日数と、頻出語のための本文を集める。
+ * `自分/`。プロジェクトごとの日数と、頻出語のための本文を集める。
  *
  * 見出しは `## HH:MM:SS <project>（source · command）`。プロジェクト名に
  * 括弧は入らないので、最初の `（` までを名前として切る。
  */
-function scanKotonoha(projects: Projects): Texts {
+function scanMine(projects: Projects): Texts {
   const texts: Texts = new Map();
-  const root = join(KYOTEN, "kotonoha");
+  const root = join(KYOTEN, "自分");
   if (!existsSync(root)) return texts;
 
   const head = /^## \d\d:\d\d:\d\d +(.+?)（/;
@@ -243,7 +243,7 @@ function scanKotonoha(projects: Projects): Texts {
         name = got[1].trim();
         const project = get(projects, name);
         project.saw(date);
-        if (date && !project.kotonohaDays.includes(date)) project.kotonohaDays.push(date);
+        if (date && !project.mineDays.includes(date)) project.mineDays.push(date);
         continue;
       }
       if (name && line.trim() && !line.startsWith("#")) {
@@ -258,14 +258,14 @@ function scanKotonoha(projects: Projects): Texts {
 }
 
 /**
- * そとのこえ。プロジェクトの名前が出てくる記事・投稿を拾う。
+ * `投稿/`。プロジェクトの名前が出てくる記事・投稿を拾う。
  *
  * 素朴な部分一致。`polidog/kyoten` は記事の中で `kyoten` としか書かれない
  * ので末尾の名前でも探すが、短い名前（`web` `shares`）は普通の単語に
  * 当たるので使わない。
  */
-function scanSoto(projects: Projects): void {
-  const root = join(KYOTEN, "soto");
+function scanPosts(projects: Projects): void {
+  const root = join(KYOTEN, "投稿");
   if (!existsSync(root)) return;
 
   const needles: [string, string[]][] = [];
@@ -346,8 +346,8 @@ function frequent(lines: readonly string[]): [string, number][] {
 
 function render(project: Project, words: readonly [string, number][]): string {
   const head = frontmatter({
-    room: "fukuro",
-    kind: "project",
+    room: "事典",
+    kind: "プロジェクト",
     name: project.name,
     first: project.first,
     last: project.last,
@@ -397,8 +397,8 @@ function render(project: Project, words: readonly [string, number][]): string {
     body.push("## そとに出したもの\n\n" + lines.slice(0, 30).join("\n"));
   }
 
-  if (project.kotonohaDays.length) {
-    const days = [...project.kotonohaDays].sort().reverse();
+  if (project.mineDays.length) {
+    const days = [...project.mineDays].sort().reverse();
     const shown = days.slice(0, 10).join("、");
     const more = days.length > 10 ? `（ほか ${days.length - 10} 日）` : "";
     body.push(`## しゃべった日\n\n${shown}${more}`);
@@ -415,11 +415,11 @@ function main(): number {
   const args = parseArgs(process.argv.slice(2), ["dry-run", "quiet"]);
 
   const projects: Projects = new Map();
-  scanBouken(projects);
-  const texts = scanKotonoha(projects);
-  scanTeato(projects, texts);
+  scanSessions(projects);
+  const texts = scanMine(projects);
+  scanWork(projects, texts);
   fold(projects, texts);
-  scanSoto(projects);
+  scanPosts(projects);
 
   const stats: Record<WriteState, number> = { new: 0, updated: 0, same: 0 };
   for (const name of [...projects.keys()].sort()) {
@@ -431,12 +431,12 @@ function main(): number {
   const total = stats.new + stats.updated + stats.same;
   if (args.flags.quiet) {
     console.log(
-      `fukuro: ${total}プロジェクト (new ${stats.new} ` +
+      `entities: ${total}プロジェクト (new ${stats.new} ` +
         `/ upd ${stats.updated} / same ${stats.same})`,
     );
   } else {
     if (args.flags["dry-run"]) console.log("（書かずに確認）");
-    console.log(`  ふくろ       : ${n(total)} プロジェクト`);
+    console.log(`  事典         : ${n(total)} プロジェクト`);
     console.log(`    あたらしい : ${n(stats.new)}`);
     console.log(`    かきかえ   : ${n(stats.updated)}`);
     console.log(`    かわらず   : ${n(stats.same)}`);

@@ -1,35 +1,35 @@
 #!/usr/bin/env node
 /**
- * otsuge — おつげ（週ごとの観測）
+ * weekly — 週報（週ごとの観測）
  *
- * うらないババが週に1度、拠点を読んで告げる。数の羅列はステータスと年表に
- * あるので、こちらは**その週に何が起きて、先週と何が違ったか**を書く。
+ * 週に1度、拠点を読んでまとめる。数の羅列はプロフィールと年表にあるので、
+ * こちらは**その週に何が起きて、先週と何が違ったか**を書く。
  *
- * 出力は `otsuge/<ISO年>-W<週>.md`（月曜はじまりの ISO 週）。
+ * 出力は `週報/<ISO年>-W<週>.md`（月曜はじまりの ISO 週）。
  *
- * ふくろ・ステータスと同じく**拠点の中しか見ない**。走らせる順番は
- * … → teato → fukuro → status → otsuge → uwasa。
+ * 事典・プロフィールと同じく**拠点の中しか見ない**。走らせる順番は
+ * … → work → entities → profile → weekly → trend。
  *
- * 日ごとの走査（`scan`）と週への畳み込み（`fold`）は まちのうわさ
- * （`uwasa.ts`）も使う。素材の読み方が2つに割れると、同じ週について
- * 違う数を言う部屋ができてしまうので、ここから借りてもらう。
+ * 日ごとの走査（`scan`）と週への畳み込み（`fold`）は 推移（`trend.ts`）も
+ * 使う。素材の読み方が2つに割れると、同じ週について違う数を言う部屋が
+ * できてしまうので、ここから借りてもらう。
  *
  * ## その週の目でだけ書く
  *
  * 「45日止まっている」のような話は、**その週の終わりの時点**で数える。
- * 今日から数えると、過去のおつげが毎晩書き換わって、読み返したときに
- * 「あのとき何と言われたか」が残らない。未来を知らないおつげは二度と
+ * 今日から数えると、過去の週報が毎晩書き換わって、読み返したときに
+ * 「あのとき何と言われたか」が残らない。未来を知らない週報は二度と
  * 変わらないので、冪等が完全に保たれる。
  *
- * 掟:
+ * 原則:
  *   - 決定論的: 走らせた日で結果が変わらない。
  *   - 冪等: 内容が変わらなければファイルに触れない。
  *   - 手で書かせない: 素材が増えれば勝手に増える。
  *
  * 使い方:
- *     otsuge.ts                   # 全部
- *     otsuge.ts --dry-run
- *     otsuge.ts --quiet
+ *     weekly.ts                   # 全部
+ *     weekly.ts --dry-run
+ *     weekly.ts --quiet
  */
 
 import { existsSync } from "node:fs";
@@ -43,10 +43,10 @@ import {
   splitFrontmatter,
   writeIfChanged,
   type WriteState,
-} from "./dougu.ts";
+} from "./util.ts";
 import { listFiles, parseArgs } from "./cli.ts";
 
-const ROOM = join(KYOTEN, "otsuge");
+const ROOM = join(KYOTEN, "週報");
 
 /** ひさしぶりと見なす空き。1か月ぶりに戻ってきたら言う価値がある。 */
 const BACK_AFTER = 30;
@@ -121,9 +121,9 @@ function dayOf(days: Map<string, Day>, key: string): Day {
 
 /** 拠点の各部屋を日付ごとに集める。 */
 export function scan(days: Map<string, Day>): void {
-  const teato = join(KYOTEN, "teato");
-  if (existsSync(teato)) {
-    for (const path of listFiles(teato, ".md")) {
+  const work = join(KYOTEN, "作業");
+  if (existsSync(work)) {
+    for (const path of listFiles(work, ".md")) {
       const [fields, body] = splitFrontmatter(readText(path));
       const dateKey = fields.date ?? "";
       if (!dateKey) continue;
@@ -163,9 +163,9 @@ export function scan(days: Map<string, Day>): void {
     }
   }
 
-  const soto = join(KYOTEN, "soto");
-  if (existsSync(soto)) {
-    for (const path of listFiles(soto, ".md")) {
+  const posts = join(KYOTEN, "投稿");
+  if (existsSync(posts)) {
+    for (const path of listFiles(posts, ".md")) {
       const [fields] = splitFrontmatter(readText(path).slice(0, 3000));
       const dateKey = fields.date ?? "";
       if (!dateKey) continue;
@@ -179,9 +179,9 @@ export function scan(days: Map<string, Day>): void {
     }
   }
 
-  const kotonoha = join(KYOTEN, "kotonoha");
-  if (existsSync(kotonoha)) {
-    for (const path of listFiles(kotonoha, ".md")) {
+  const mine = join(KYOTEN, "自分");
+  if (existsSync(mine)) {
+    for (const path of listFiles(mine, ".md")) {
       const [fields] = splitFrontmatter(readText(path).slice(0, 2000));
       const dateKey = fields.date ?? "";
       if (!dateKey) continue;
@@ -190,9 +190,9 @@ export function scan(days: Map<string, Day>): void {
     }
   }
 
-  const bouken = join(KYOTEN, "bouken");
-  if (existsSync(bouken)) {
-    for (const path of listFiles(bouken, ".md")) {
+  const sessions = join(KYOTEN, "会話");
+  if (existsSync(sessions)) {
+    for (const path of listFiles(sessions, ".md")) {
       const [fields] = splitFrontmatter(readText(path).slice(0, 2000));
       const dateKey = (fields.started ?? "").slice(0, 10);
       if (dateKey) dayOf(days, dateKey).sessions += 1;
@@ -292,7 +292,7 @@ function diff(now: number, before: number | null): string {
 }
 
 /**
- * 1週ぶんのおつげ。
+ * 1週ぶんの週報。
  *
  * `seen` はその週に入る**前**までの、プロジェクトごとの最後の日。
  * `totals` は同じくコミットの累計。どちらも未来を含まない。
@@ -304,14 +304,14 @@ function render(
   totals: ReadonlyMap<string, number>,
 ): string {
   const head = frontmatter({
-    room: "otsuge",
+    room: "週報",
     week: week.key,
     from: week.start,
     to: week.end,
     commits: week.commits,
   });
 
-  const body: string[] = [`# ${week.key} のおつげ`, `${week.start} 〜 ${week.end}`];
+  const body: string[] = [`# ${week.key} の週報`, `${week.start} 〜 ${week.end}`];
 
   const lines: string[] = [];
   if (week.commits) {
@@ -388,7 +388,7 @@ function main(): number {
   const weeks = fold(days);
 
   // 週を古い順に見ながら「その時点までに知っていること」を育てる。
-  // 先に全部集めてしまうと、過去のおつげが未来を知ってしまう。
+  // 先に全部集めてしまうと、過去の週報が未来を知ってしまう。
   const seen = new Map<string, string>();
   const totals = new Map<string, number>();
   const stats: Record<WriteState, number> = { new: 0, updated: 0, same: 0 };
@@ -410,11 +410,11 @@ function main(): number {
   const total = stats.new + stats.updated + stats.same;
   if (args.flags.quiet) {
     console.log(
-      `otsuge: ${total}週 (new ${stats.new} / upd ${stats.updated} / same ${stats.same})`,
+      `weekly: ${total}週 (new ${stats.new} / upd ${stats.updated} / same ${stats.same})`,
     );
   } else {
     if (args.flags["dry-run"]) console.log("（書かずに確認）");
-    console.log(`  おつげ       : ${n(total)} 週`);
+    console.log(`  週報       : ${n(total)} 週`);
     console.log(`    あたらしい : ${n(stats.new)}`);
     console.log(`    かきかえ   : ${n(stats.updated)}`);
     console.log(`    かわらず   : ${n(stats.same)}`);
@@ -425,5 +425,5 @@ function main(): number {
   return 0;
 }
 
-// うわさ（`uwasa.ts`）が scan/fold を借りるので、素で import しても走らせない
+// 推移（`trend.ts`）が scan/fold を借りるので、素で import しても走らせない
 if (import.meta.main) process.exit(main());

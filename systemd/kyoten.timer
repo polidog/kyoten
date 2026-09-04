@@ -1,5 +1,5 @@
 [Unit]
-Description=よるのとばりを毎晩起こす
+Description=kyoten の定時便を毎晩起こす
 Documentation=https://github.com/polidog/kyoten
 
 [Timer]

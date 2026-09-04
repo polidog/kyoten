@@ -1,28 +1,28 @@
 #!/usr/bin/env node
 /**
- * status — ステータス・とくぎ・年表（観測結果の2階）
+ * profile — プロフィール・スキル・年表（観測結果の2階）
  *
- * 1階（ぼうけんのしょ・ことのは・そとのこえ・てのあと・ふくろ）に溜まった
- * ものを、**人が読むための形**に畳む。ふくろが「プロジェクトごとの横串」
- * なら、こちらは「技ごと」と「年ごと」と「いま」。
+ * 1階（会話・自分・投稿・作業・事典）に溜まったものを、**人が読むための形**
+ * へ畳む。事典が「プロジェクトごとの横串」なら、こちらは「技ごと」と
+ * 「年ごと」と「いま」。
  *
- *     status/status.md          いまの自分（1枚）
- *     status/tokugi/<name>.md   技ごと。いつ覚えて、いつ使ったか
- *     status/nenpyo/<YYYY>.md   年ごと。その年に何をしていたか
+ *     プロフィール/プロフィール.md    いまの自分（1枚）
+ *     プロフィール/スキル/<name>.md   技ごと。いつ覚えて、いつ使ったか
+ *     プロフィール/年表/<YYYY>.md     年ごと。その年に何をしていたか
  *
- * ふくろと同じく**拠点の中しか見ない**。jsonl も git も直接は読まない。
- * 走らせる順番は … → teato → fukuro → status。
+ * 事典と同じく**拠点の中しか見ない**。jsonl も git も直接は読まない。
+ * 走らせる順番は … → work → entities → profile。
  *
- * 掟:
+ * 原則:
  *   - 決定論的: 同じ拠点なら必ず同じ出力。「今日から何日」のような、
  *     走らせた日で変わる数は書かない。
  *   - 冪等: 内容が変わらなければファイルに触れない。
  *   - 手で書かせない: 技の一覧も年表も、素材が増えれば勝手に増える。
  *
  * 使い方:
- *     status.ts                   # 全部
- *     status.ts --dry-run
- *     status.ts --quiet
+ *     profile.ts                   # 全部
+ *     profile.ts --dry-run
+ *     profile.ts --quiet
  */
 
 import { existsSync } from "node:fs";
@@ -37,13 +37,13 @@ import {
   splitFrontmatter,
   writeIfChanged,
   type WriteState,
-} from "./dougu.ts";
+} from "./util.ts";
 import { listFiles, parseArgs } from "./cli.ts";
 
-const ROOM = join(KYOTEN, "status");
+const ROOM = join(KYOTEN, "プロフィール");
 
 /**
- * とくぎとして1枚立てる下限。これを下回るものは、その年に一度触っただけの
+ * スキルとして1枚立てる下限。これを下回るものは、その年に一度触っただけの
  * ものが大半で、並べても技には見えない。
  */
 const MIN_ARTICLES = 5;
@@ -230,16 +230,16 @@ function extName(path: string): string {
   return EXT_TO_NAME.get(ext) ?? ext;
 }
 
-/** そとのこえ。記事のタグが「書いたこと」、日付が年表の骨。 */
-function scanSoto(skills: Skills, years: Years, span: string[]): void {
-  const root = join(KYOTEN, "soto");
+/** `投稿/`。記事のタグが「書いたこと」、日付が年表の骨。 */
+function scanPosts(skills: Skills, years: Years, span: string[]): void {
+  const root = join(KYOTEN, "投稿");
   if (!existsSync(root)) return;
 
   for (const path of listFiles(root, ".md")) {
     const [fields] = splitFrontmatter(readText(path).slice(0, 3000));
     const date = fields.date ?? "";
     if (!date) continue;
-    // ステータスの「いつから」は拠点にある最初の日。タグの付いた記事に
+    // プロフィールの「いつから」は拠点にある最初の日。タグの付いた記事に
     // 限ると、タグを使い始める前（2004〜2005）が丸ごと落ちる。
     span.push(date);
     const year = yearOf(years, date.slice(0, 4));
@@ -267,9 +267,9 @@ function scanSoto(skills: Skills, years: Years, span: string[]): void {
   }
 }
 
-/** てのあと。触ったファイルの拡張子が「手が動いたもの」。 */
-function scanTeato(skills: Skills, years: Years, span: string[]): void {
-  const root = join(KYOTEN, "teato");
+/** `作業/`。触ったファイルの拡張子が「手が動いたもの」。 */
+function scanWork(skills: Skills, years: Years, span: string[]): void {
+  const root = join(KYOTEN, "作業");
   if (!existsSync(root)) return;
 
   for (const path of listFiles(root, ".md")) {
@@ -313,15 +313,15 @@ function scanTeato(skills: Skills, years: Years, span: string[]): void {
   }
 }
 
-/** 各部屋の大きさ。ステータスの「つよさ」になる。 */
+/** 各部屋の大きさ。プロフィールの「記録の量」になる。 */
 function scanRooms(): Record<string, number> {
   const counts: Record<string, number> = {};
-  for (const room of ["bouken", "kotonoha", "soto", "teato"]) {
+  for (const room of ["会話", "自分", "投稿", "作業"]) {
     const root = join(KYOTEN, room);
     counts[room] = existsSync(root) ? listFiles(root, ".md").length : 0;
   }
-  const fukuro = join(KYOTEN, "fukuro", "project");
-  counts.fukuro = existsSync(fukuro) ? listFiles(fukuro, ".md").length : 0;
+  const entities = join(KYOTEN, "事典", "プロジェクト");
+  counts["事典"] = existsSync(entities) ? listFiles(entities, ".md").length : 0;
   return counts;
 }
 
@@ -329,8 +329,8 @@ function scanRooms(): Record<string, number> {
 
 function renderSkill(skill: Skill): string {
   const head = frontmatter({
-    room: "status",
-    kind: "tokugi",
+    room: "プロフィール",
+    kind: "スキル",
     name: skill.name,
     first: skill.first(),
     last: skill.last(),
@@ -375,8 +375,8 @@ function renderSkill(skill: Skill): string {
 
 function renderYear(year: Year): string {
   const head = frontmatter({
-    room: "status",
-    kind: "nenpyo",
+    room: "プロフィール",
+    kind: "年表",
     year: year.year,
     commits: year.commits,
     articles: year.articles,
@@ -421,7 +421,7 @@ function shiftDays(date: string, delta: number): string {
   return new Date(ms + delta * 86_400_000).toISOString().slice(0, 10);
 }
 
-function renderStatus(
+function renderProfile(
   rooms: Record<string, number>,
   skills: Skills,
   years: Years,
@@ -430,26 +430,26 @@ function renderStatus(
   const [start, today] = span;
 
   const head = frontmatter({
-    room: "status",
-    kind: "status",
+    room: "プロフィール",
+    kind: "プロフィール",
     first: start,
     last: today,
-    tokugi: [...skills.values()].filter((s) => s.worthAPage()).length,
+    skills: [...skills.values()].filter((s) => s.worthAPage()).length,
   });
 
-  const body: string[] = ["# ステータス"];
+  const body: string[] = ["# プロフィール"];
 
   if (start && today) {
     const held = Number(today.slice(0, 4)) - Number(start.slice(0, 4)) + 1;
     body.push(`${start} から ${today} まで。${held} 年。`);
   }
 
-  body.push("## つよさ\n\n" + [
-    `- ぼうけんのしょ　${n(rooms.bouken ?? 0)} さつ`,
-    `- ことのは　　　　${n(rooms.kotonoha ?? 0)} 日ぶん`,
-    `- そとのこえ　　　${n(rooms.soto ?? 0)}`,
-    `- てのあと　　　　${n(rooms.teato ?? 0)} 日ぶん`,
-    `- ふくろ　　　　　${n(rooms.fukuro ?? 0)} プロジェクト`,
+  body.push("## 記録の量\n\n" + [
+    `- 会話　　　${n(rooms["会話"] ?? 0)} 本`,
+    `- 自分　　　${n(rooms["自分"] ?? 0)} 日ぶん`,
+    `- 投稿　　　${n(rooms["投稿"] ?? 0)}`,
+    `- 作業　　　${n(rooms["作業"] ?? 0)} 日ぶん`,
+    `- 事典　　　${n(rooms["事典"] ?? 0)} プロジェクト`,
   ].join("\n"));
 
   // 「いま」は拠点の最後の日から遡る。走らせた日を使うと、同じ拠点でも
@@ -500,8 +500,8 @@ function main(): number {
   const skills: Skills = new Map();
   const years: Years = new Map();
   const span: string[] = [];
-  scanSoto(skills, years, span);
-  scanTeato(skills, years, span);
+  scanPosts(skills, years, span);
+  scanWork(skills, years, span);
   const rooms = scanRooms();
   const period: [string, string] = span.length
     ? [span.reduce((a, b) => (a < b ? a : b)), span.reduce((a, b) => (a > b ? a : b))]
@@ -511,31 +511,31 @@ function main(): number {
 
   const kept = [...skills.entries()].filter(([, s]) => s.worthAPage());
   for (const [name, skill] of kept.sort((a, b) => (a[0] < b[0] ? -1 : 1))) {
-    const out = join(ROOM, "tokugi", safePath(name).replaceAll("/", "-") + ".md");
+    const out = join(ROOM, "スキル", safePath(name).replaceAll("/", "-") + ".md");
     stats[writeIfChanged(out, renderSkill(skill), args.flags["dry-run"])] += 1;
   }
 
   for (const key of [...years.keys()].sort()) {
-    const out = join(ROOM, "nenpyo", `${key}.md`);
+    const out = join(ROOM, "年表", `${key}.md`);
     stats[writeIfChanged(out, renderYear(years.get(key)!), args.flags["dry-run"])] += 1;
   }
 
-  stats[writeIfChanged(join(ROOM, "status.md"),
-    renderStatus(rooms, skills, years, period), args.flags["dry-run"])] += 1;
+  stats[writeIfChanged(join(ROOM, "プロフィール.md"),
+    renderProfile(rooms, skills, years, period), args.flags["dry-run"])] += 1;
 
   const total = stats.new + stats.updated + stats.same;
   if (args.flags.quiet) {
     console.log(
-      `status: ${total}枚 (new ${stats.new} / upd ${stats.updated} ` +
-        `/ same ${stats.same}) とくぎ ${kept.length} 年 ${years.size}`,
+      `profile: ${total}枚 (new ${stats.new} / upd ${stats.updated} ` +
+        `/ same ${stats.same}) スキル ${kept.length} 年 ${years.size}`,
     );
   } else {
     if (args.flags["dry-run"]) console.log("（書かずに確認）");
-    console.log(`  ステータス   : ${n(total)} 枚`);
+    console.log(`  プロフィール   : ${n(total)} 枚`);
     console.log(`    あたらしい : ${n(stats.new)}`);
     console.log(`    かきかえ   : ${n(stats.updated)}`);
     console.log(`    かわらず   : ${n(stats.same)}`);
-    console.log(`  とくぎ       : ${n(kept.length)}（候補 ${n(skills.size)}）`);
+    console.log(`  スキル       : ${n(kept.length)}（候補 ${n(skills.size)}）`);
     console.log(`  年表         : ${n(years.size)} 年`);
     console.log(`  ばしょ : ${ROOM}`);
   }

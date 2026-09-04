@@ -69,10 +69,10 @@ section{padding:52px 0;border-top:2px solid var(--line)}
 .sec-head h2{font-size:25px;letter-spacing:.03em}
 .sec-head p{color:var(--ink-soft);margin:12px 0 0;max-width:64ch}
 
-/* こんしゅうの おつげ */
-.otsuge{border:3px solid var(--ok);background:var(--surface);padding:22px 26px;margin:0 5px}
-.otsuge .o-title{font-family:"DotGothic16",monospace;font-size:17px;color:var(--ok);letter-spacing:.03em}
-.otsuge .o-when{font-size:12.5px;color:var(--muted);margin-top:2px;font-family:"DotGothic16",monospace}
+/* こんしゅうの 週報 */
+.report{border:3px solid var(--ok);background:var(--surface);padding:22px 26px;margin:0 5px}
+.report .o-title{font-family:"DotGothic16",monospace;font-size:17px;color:var(--ok);letter-spacing:.03em}
+.report .o-when{font-size:12.5px;color:var(--muted);margin-top:2px;font-family:"DotGothic16",monospace}
 .o-body{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:6px 34px;margin-top:20px}
 .o-sec h3{font-size:14px;color:var(--blue);letter-spacing:.05em;margin-bottom:4px}
 .o-sec ul{margin:0 0 18px;padding-left:1.2em}
@@ -80,8 +80,8 @@ section{padding:52px 0;border-top:2px solid var(--line)}
 .o-sec p{font-size:13.5px;color:var(--ink-soft);margin:0 0 16px}
 .o-sec li b,.o-sec p b{color:var(--ink)}
 
-/* とくぎ */
-.tokugi{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:12px}
+/* スキル */
+.skills{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:12px}
 .tk{background:var(--surface);border:2px solid var(--line);box-shadow:var(--shadow);padding:14px 16px}
 .tk .tk-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
 .tk .tk-name{font-family:"DotGothic16",monospace;font-size:16px;letter-spacing:.02em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -151,7 +151,7 @@ function inline(text) {
   return html;
 }
 
-/** おつげの節。箇条書きと段落だけ描く */
+/** 週報の節。箇条書きと段落だけ描く */
 function lines(rows) {
   var out = [];
   var ul = [];
@@ -197,21 +197,21 @@ function render(s) {
     " 手で書いた部屋は一つもない —— ぜんぶログから機械が起こしたもの。" +
     "ここに出るのは<b>まとめ</b>だけで、潜って読むのは端末の仕事。</p>");
   out.push('<div class="win status"><div class="st-grid">');
-  s.tsuyosa.forEach(function (t) {
+  s.stats.forEach(function (t) {
     out.push("<div><span>" + esc(t.label) + "</span><b>" + esc(t.value) + "</b></div>");
   });
-  out.push("<div><span>とくぎ</span><b>" + num(s.tokugi) + "</b></div>");
-  out.push("<div><span>おつげ</span><b>" + num(s.weeks) + "週</b></div>");
+  out.push("<div><span>スキル</span><b>" + num(s.skills) + "</b></div>");
+  out.push("<div><span>週報</span><b>" + num(s.weeks) + "週</b></div>");
   out.push("<div><span>ぜんぶで</span><b>" + s.span + "年</b></div>");
   out.push("</div></div></header>");
 
-  // ---- こんしゅうの おつげ
-  if (s.konshu) {
-    var k = s.konshu;
+  // ---- こんしゅうの 週報
+  if (s.weekly) {
+    var k = s.weekly;
     out.push("<section>");
-    out.push(secHead("こんしゅうの おつげ", "向こうから 来たもの",
-      "うらないババが週に一度、拠点を読んで告げるもの。当たっている必要はなく、問いとして刺されば十分。"));
-    out.push('<div class="otsuge">');
+    out.push(secHead("こんしゅうの 週報", "その週に 起きたこと",
+      "週に一度、拠点を読んでまとめたもの。数はプロフィールと年表にあるので、ここは差分だけ。"));
+    out.push('<div class="report">');
     out.push('<div class="o-title">' + esc(k.title) + "</div>");
     out.push('<div class="o-when">' + esc(k.lead) + "</div>");
     out.push('<div class="o-body">');
@@ -221,14 +221,14 @@ function render(s) {
     out.push("</div></div></section>");
   }
 
-  // ---- まちのうわさ
-  if (s.uwasa) {
-    var w = s.uwasa;
+  // ---- 推移
+  if (s.trend) {
+    var w = s.trend;
     out.push("<section>");
-    out.push(secHead("まちのうわさ", "つもった もの",
-      "吟遊詩人の週報。おつげが「その週に何が起きたか」なら、うわさは「ここまでで何が積み上がったか」。" +
-      "ステータスは1枚しか無いので、先週の自分はここにしか残らない。"));
-    out.push('<div class="otsuge">');
+    out.push(secHead("推移", "つもった もの",
+      "週報が「その週に何が起きたか」なら、推移は「ここまでで何が積み上がったか」。" +
+      "プロフィールは1枚しか無いので、先週の自分はここにしか残らない。"));
+    out.push('<div class="report">');
     out.push('<div class="o-title">' + esc(w.title) + "</div>");
     out.push('<div class="o-when">' + esc(w.lead) + "</div>");
     out.push('<div class="o-body">');
@@ -238,14 +238,14 @@ function render(s) {
     out.push("</div></div></section>");
   }
 
-  // ---- とくぎ
-  var maxYears = Math.max.apply(null, s.tokugiTop.map(function (t) { return t.years; }).concat([1]));
+  // ---- スキル
+  var maxYears = Math.max.apply(null, s.skillTop.map(function (t) { return t.years; }).concat([1]));
   out.push("<section>");
-  out.push(secHead("とくぎ", "くりかえし あらわれる かた",
+  out.push(secHead("スキル", "くりかえし あらわれる かた",
     "手が動いたファイルと書いた記事から起こしたもの。★は付き合いの長さ。" +
-    "ぜんぶで <b>" + num(s.tokugi) + "</b> 枚あるうちの上から12枚。"));
-  out.push('<div class="tokugi">');
-  s.tokugiTop.forEach(function (t) {
+    "ぜんぶで <b>" + num(s.skills) + "</b> 枚あるうちの上から12枚。"));
+  out.push('<div class="skills">');
+  s.skillTop.forEach(function (t) {
     var star = Math.max(1, Math.round((t.years / maxYears) * 5));
     out.push('<div class="tk"><div class="tk-top">' +
       '<span class="tk-name">' + esc(t.name) + "</span>" +
@@ -259,24 +259,24 @@ function render(s) {
   out.push("<section>");
   out.push(secHead("いま と ずっと", "手が うごいて いるもの",
     "左はここ3か月の実測、右は付き合いの長さ。<b>いま</b>と<b>ずっと</b>がずれているほど、最近なにか変わった。"));
-  out.push('<div class="two"><div><h3>' + esc(s.imaHead) + "</h3>" +
-    bars(s.ima.map(function (i) { return { name: i.name, value: i.count }; })) + "</div>");
+  out.push('<div class="two"><div><h3>' + esc(s.nowHead) + "</h3>" +
+    bars(s.now.map(function (i) { return { name: i.name, value: i.count }; })) + "</div>");
   out.push("<div><h3>長くいっしょにいるもの</h3>" +
-    bars(s.nagaku.map(function (x) {
+    bars(s.longTerm.map(function (x) {
       return { name: x.name, value: x.years, label: x.years + "年" };
     }), true) + "</div></div>");
   out.push("</section>");
 
   // ---- あゆみ
-  var maxC = Math.max.apply(null, s.ayumi.map(function (a) { return a.commits; }).concat([1]));
-  var maxA = Math.max.apply(null, s.ayumi.map(function (a) { return a.articles; }).concat([1]));
+  var maxC = Math.max.apply(null, s.years.map(function (a) { return a.commits; }).concat([1]));
+  var maxA = Math.max.apply(null, s.years.map(function (a) { return a.articles; }).concat([1]));
   out.push("<section>");
-  out.push(secHead("あゆみ", s.ayumi.length + "年の かたち",
+  out.push(secHead("あゆみ", s.years.length + "年の かたち",
     "青がコミット、金が記事。書いていた時期と、手を動かしていた時期は重なっていない。"));
   out.push('<div class="tbl-scroll"><table><thead><tr>' +
     "<th>とし</th><th>コミット</th><th></th><th>きじ</th><th></th><th>おもに</th>" +
     "</tr></thead><tbody>");
-  s.ayumi.forEach(function (a) {
+  s.years.forEach(function (a) {
     out.push("<tr><td class=\"year\">" + a.year + "</td>" +
       '<td class="num">' + (a.commits ? num(a.commits) : "") + "</td>" +
       '<td class="graph"><span class="mini"><i style="width:' +
@@ -291,18 +291,18 @@ function render(s) {
   // ---- いる ばしょ
   out.push("<section>");
   out.push(secHead("いる ばしょ", "さいきん 手を いれたところ",
-    "ふくろ（長期記憶）が畳んだプロジェクト台帳から、新しく触った順に8つ。"));
+    "事典（長期記憶）が畳んだプロジェクト台帳から、新しく触った順に8つ。"));
   out.push('<div class="basho">');
-  s.basho.forEach(function (p) {
+  s.places.forEach(function (p) {
     out.push('<div class="bs"><div class="bs-name">' + esc(p.name) + "</div>" +
       '<div class="bs-when">' + esc(p.first) + " 〜 " + esc(p.last) + "</div>" +
       '<div class="bs-num">会話 ' + num(p.sessions) + "　コミット " + num(p.commits) + "</div></div>");
   });
   out.push("</div></section>");
 
-  out.push('<p class="foot">▶ ここに出ているのはまとめだけ。71枚のとくぎ、' + num(s.weeks) +
-    "週のおつげ、23年ぶんの年表を潜って読むなら <code>bin/tsuyosa.ts</code>、" +
-    "探すなら <code>bin/ruula.ts</code>。拠点は private なので、この城は 127.0.0.1 にしか出ない。</p>");
+  out.push('<p class="foot">▶ ここに出ているのはまとめだけ。71枚のスキル、' + num(s.weeks) +
+    "週の週報、23年ぶんの年表を潜って読むなら <code>bin/browse.ts</code>、" +
+    "探すなら <code>bin/search.ts</code>。拠点は private なので、ここは 127.0.0.1 にしか出ない。</p>");
 
   document.getElementById("app").innerHTML = out.join("");
 }
@@ -312,11 +312,11 @@ function render(s) {
     var res = await fetch("/api/summary");
     var data = await res.json();
     if (!res.ok) throw new Error(data && data.error ? data.error : res.statusText);
-    if (!data) throw new Error("拠点にステータスがありません");
+    if (!data) throw new Error("拠点にプロフィールがありません");
     render(data);
   } catch (err) {
     document.getElementById("app").innerHTML =
-      '<header class="head"><p class="kicker">＊ きょてん ＊</p><h1>城が からっぽです</h1>' +
+      '<header class="head"><p class="kicker">＊ きょてん ＊</p><h1>拠点が からっぽです</h1>' +
       '<p class="sub err">' + esc(err.message) + "</p></header>";
   }
 })();

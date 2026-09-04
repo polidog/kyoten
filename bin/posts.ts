@@ -1,20 +1,20 @@
 #!/usr/bin/env node
 /**
- * sotonokoe — そとのこえ（外に出した言葉を集める）
+ * posts — 外に出した言葉を集める
  *
  * polidog.jp・Bluesky・Misskey から、自分が外に向けて出した言葉を拠点へ写す。
- * ぼうけんのしょ (会話) やことのは (自分の発言) が「閉じた場所での言葉」なのに
- * 対して、こちらは公開された言葉。
+ * `会話/` や `自分/` が「閉じた場所での言葉」なのに対して、
+ * こちらは公開された言葉。
  *
  * 出力:
- *     soto/<YYYY-MM>/<DD>-<slug>.md           polidog.jp の記事 1 本
- *     soto/<YYYY-MM>/bluesky-<YYYY-MM-DD>.md  その日の Bluesky
- *     soto/<YYYY-MM>/misskey-<YYYY-MM-DD>.md  その日の Misskey
+ *     投稿/<YYYY-MM>/<DD>-<slug>.md           polidog.jp の記事 1 本
+ *     投稿/<YYYY-MM>/bluesky-<YYYY-MM-DD>.md  その日の Bluesky
+ *     投稿/<YYYY-MM>/misskey-<YYYY-MM-DD>.md  その日の Misskey
  *
  * 記事が 1 本 1 ファイルで SNS が日ごとなのは、長さが 2 桁違うため。1 投稿
- * 1 ファイルにすると数千の断片ができて、ルーラで引いたときに前後が見えない。
+ * 1 ファイルにすると数千の断片ができて、検索で引いたときに前後が見えない。
  *
- * 掟:
+ * 原則:
  *   - 決定論的: 同じ入力なら必ず同じ出力。取得日時のような揺れる値を書かない。
  *     **いいね数・リアクション数・リノート数は書かない** —— 過去の投稿でも
  *     増減するので、書くと毎回全ファイルが書き換わって冪等が壊れる。
@@ -25,12 +25,12 @@
  *     失敗したソースのファイルには一切触れない。
  *
  * 使い方:
- *     sotonokoe.ts                    # 全部集める
- *     sotonokoe.ts --dry-run          # 書かずに結果だけ
- *     sotonokoe.ts --since 2026-08-01
- *     sotonokoe.ts --quiet            # 1行だけ（定時便用）
- *     sotonokoe.ts --source bluesky   # ソースを絞る（blog / bluesky / misskey）
- *     sotonokoe.ts --site http://127.0.0.1:8123   # 手元の polidog.jp を見る
+ *     posts.ts                    # 全部集める
+ *     posts.ts --dry-run          # 書かずに結果だけ
+ *     posts.ts --since 2026-08-01
+ *     posts.ts --quiet            # 1行だけ（定時便用）
+ *     posts.ts --source bluesky   # ソースを絞る（blog / bluesky / misskey）
+ *     posts.ts --site http://127.0.0.1:8123   # 手元の polidog.jp を見る
  */
 
 import { existsSync } from "node:fs";
@@ -48,7 +48,7 @@ import {
   writeIfChanged,
   ymd,
   type WriteState,
-} from "./dougu.ts";
+} from "./util.ts";
 import { parseArgs, parseSince } from "./cli.ts";
 
 const SITE = "https://polidog.jp";
@@ -65,9 +65,9 @@ const PAGE = 100;
 const MAX_PAGES = 200;
 
 const TIMEOUT = 30_000;
-const UA = "kyoten/sotonokoe (+https://github.com/polidog/kyoten)";
+const UA = "kyoten/posts (+https://github.com/polidog/kyoten)";
 
-const ROOM = join(KYOTEN, "soto");
+const ROOM = join(KYOTEN, "投稿");
 
 // ---------------------------------------------------------------- 取りに行く
 
@@ -227,7 +227,7 @@ async function blog(writer: Writer, site: string, since: string | null): Promise
 function renderPost(post: JsonPost, date: string): string {
   const tags = (post.tags ?? []).map((t) => String(t?.slug ?? "")).filter(Boolean);
   const head = frontmatter({
-    room: "soto",
+    room: "投稿",
     source: "polidog.jp",
     date,
     updated: String(post.updatedAt ?? ""),
@@ -435,7 +435,7 @@ function bundle(writer: Writer, source: string, posts: readonly Post[], since: s
 }
 
 function renderDay(source: string, date: string, items: readonly Post[]): string {
-  const head = frontmatter({ room: "soto", source, date, posts: items.length });
+  const head = frontmatter({ room: "投稿", source, date, posts: items.length });
   const body: string[] = [];
   for (const post of items) {
     let label = `${hhmm(post.dt)} ${post.ident}`;
@@ -491,14 +491,14 @@ async function main(): Promise<number> {
   const stats = writer.stats;
   if (args.flags.quiet) {
     const got = [...counts.entries()].map(([k, v]) => `${k} ${v}`).join(" ");
-    let line = `sotonokoe: ${writer.total}ファイル (new ${stats.new} ` +
+    let line = `posts: ${writer.total}ファイル (new ${stats.new} ` +
       `/ upd ${stats.updated} / same ${stats.same}) ${got}`;
     if (writer.failed) line += ` ／ とれず ${writer.failed}`;
     if (unreachable.length) line += ` ／ とどかず ${unreachable.join(",")}`;
     console.log(line);
   } else {
     if (args.flags["dry-run"]) console.log("（書かずに確認）");
-    console.log(`  そとのこえ   : ${n(writer.total)} ファイル`);
+    console.log(`  投稿   : ${n(writer.total)} ファイル`);
     console.log(`    あたらしい : ${n(stats.new)}`);
     console.log(`    かきかえ   : ${n(stats.updated)}`);
     console.log(`    かわらず   : ${n(stats.same)}`);

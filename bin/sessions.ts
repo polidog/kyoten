@@ -1,20 +1,20 @@
 #!/usr/bin/env node
 /**
- * utsushi — ぼうけんのしょの書き写し
+ * sessions — 会話の書き写し
  *
  * Claude Code と Codex の会話ログ (jsonl) を Markdown に決定論変換する。
  *
- * 掟:
+ * 原則:
  *   - 決定論的: 同じ入力なら必ず同じ出力。生成日時などの揺れる値は書かない。
  *   - 冪等: 内容が変わらなければファイルに触れない (mtime を動かさない)。
  *   - 原文ママ: 発話は加工しない。長大なツール出力だけ末尾を省略し、その旨を明記する。
  *     原本の jsonl は cleanupPeriodDays=3650 で手元に残るので、省略は復元可能。
  *
  * 使い方:
- *     utsushi.ts              # 全部を写す
- *     utsushi.ts --dry-run    # 何が書かれるかだけ見る
- *     utsushi.ts --since 2026-08-01
- *     utsushi.ts --file <jsonl>   # その1本だけ写す（すずのおとの SessionEnd 用）
+ *     sessions.ts              # 全部を写す
+ *     sessions.ts --dry-run    # 何が書かれるかだけ見る
+ *     sessions.ts --since 2026-08-01
+ *     sessions.ts --file <jsonl>   # その1本だけ写す（hook.ts の SessionEnd 用）
  */
 
 import { existsSync } from "node:fs";
@@ -41,7 +41,7 @@ import {
   writeIfChanged,
   ymd,
   type WriteState,
-} from "./dougu.ts";
+} from "./util.ts";
 import { listFiles, parseArgs, parseSince } from "./cli.ts";
 
 /** ツール出力がこれを超えたら末尾を省略する (原本は jsonl に残る) */
@@ -326,7 +326,7 @@ function main(): number {
   const jobs: [string, "claude" | "codex"][] = [];
   if (args.values.file !== undefined) {
     // 1本だけ写す。セッションが終わったその場で呼ぶための口で、
-    // 名前の衝突（罠1）はここでは見ない —— 全部を写す夜の便が刻み直す。
+    // 名前の衝突（落とし穴1）はここでは見ない —— 全部を写す夜の便が刻み直す。
     const one = resolve(args.values.file);
     if (!existsSync(one)) {
       console.error(`そのファイルがありません: ${one}`);
@@ -378,7 +378,7 @@ function main(): number {
     let key = safeName(stem);
     if (key.startsWith("rollout-")) key = key.slice("rollout-".length); // Codex は日時が名前に入っていて冗長
 
-    let out = join(KYOTEN, "bouken", kind, safePath(meta.slug + sub), `${meta.date}_${key}.md`);
+    let out = join(KYOTEN, "会話", kind, safePath(meta.slug + sub), `${meta.date}_${key}.md`);
 
     // それでも衝突するなら元ファイル名を足す。入力はソート済みなので結果は安定する
     const owner = taken.get(out);
@@ -395,12 +395,12 @@ function main(): number {
   const total = stats.new + stats.updated + stats.same;
   if (args.flags.quiet) {
     console.log(
-      `utsushi: ${total}さつ (new ${stats.new} / upd ${stats.updated} ` +
+      `sessions: ${total}本 (new ${stats.new} / upd ${stats.updated} ` +
         `/ same ${stats.same}) 発言 ${n(utterances)}`,
     );
   } else {
     console.log(args.flags["dry-run"] ? "（書かずに確認）" : "");
-    console.log(`  ぼうけんのしょ : ${n(total)} さつ`);
+    console.log(`  会話 : ${n(total)} 本`);
     console.log(`    あたらしい   : ${n(stats.new)}`);
     console.log(`    かきかえ     : ${n(stats.updated)}`);
     console.log(`    かわらず     : ${n(stats.same)}`);
@@ -408,7 +408,7 @@ function main(): number {
     if (stats.collided) console.log(`    なまえ衝突   : ${n(stats.collided)}`);
     if (stats.failed) console.log(`    しっぱい     : ${n(stats.failed)}`);
     console.log(`  じぶんの はつげん : ${n(utterances)}`);
-    console.log(`  ばしょ : ${join(KYOTEN, "bouken")}`);
+    console.log(`  ばしょ : ${join(KYOTEN, "会話")}`);
   }
 
   return stats.failed ? 1 : 0;

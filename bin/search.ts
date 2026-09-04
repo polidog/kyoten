@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 /**
- * ruula — ルーラ（拠点の全文検索）
+ * search — 拠点の全文検索
  *
- * 「行ったことのある場所にしか飛べない」。写しを取った場所だけが検索できる。
+ * 写しを取った場所だけが引ける。拠点に無いものは検索でも出てこない。
  *
  * 刻む対象:
- *     bouken/    ぼうけんのしょ（会話原文の写し）
- *     kotonoha/  ことのは（自分の発言）
- *     soto/ teato/ fukuro/ status/ otsuge/ uwasa/
+ *     会話/        会話の原文
+ *     自分/        polidog の発言だけ
+ *     投稿/ 作業/ 事典/ プロフィール/ 週報/
  *     ~/Documents/Obsidian/reading-notes/   読み専用の水源
  *
  * SQLite FTS5 の trigram トークナイザを使う。日本語を分かち書きせずに
@@ -15,12 +15,12 @@
  * 部分一致に落ちる）。
  *
  * 使い方:
- *     ruula.ts "検索語"
- *     ruula.ts "検索語" --project polidog/kyoten
- *     ruula.ts "検索語" --room kotonoha --since 2026-09-01
- *     ruula.ts --rebuild          # 刻み直すだけ
- *     ruula.ts --stats            # 索引の中身を数える
- *     ruula.ts --rebuild --quiet  # 刻み直して1行だけ（定時便用）
+ *     search.ts "検索語"
+ *     search.ts "検索語" --project polidog/kyoten
+ *     search.ts "検索語" --room 自分 --since 2026-09-01
+ *     search.ts --rebuild          # 刻み直すだけ
+ *     search.ts --stats            # 索引の中身を数える
+ *     search.ts --rebuild --quiet  # 刻み直して1行だけ（定時便用）
  */
 
 import { DatabaseSync } from "node:sqlite";
@@ -28,10 +28,10 @@ import { existsSync, mkdirSync, renameSync, rmSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, relative } from "node:path";
 
-import { KYOTEN, n, readText, splitFrontmatter } from "./dougu.ts";
+import { KYOTEN, n, readText, splitFrontmatter } from "./util.ts";
 import { listFiles, parseArgs, parseSince } from "./cli.ts";
 
-export const DB = join(KYOTEN, ".ruula.db");
+export const DB = join(KYOTEN, ".search.db");
 const READING_NOTES = process.env.KYOTEN_READING ??
   join(homedir(), "Documents/Obsidian/reading-notes");
 
@@ -43,23 +43,22 @@ export const TRIGRAM_MIN = 3;
 
 const RE_HEADING = /^(#{1,6}) +([^\n]*)$/;
 const RE_DATE = /(\d{4}-\d{2}-\d{2})/;
-/** ことのはの見出し: "09:12:03 polidog/kyoten（claude-code · /omarchy）" */
-const RE_KOTONOHA_HEAD = /^\d\d:\d\d:\d\d +(.+?)（/;
+/** 「自分」の見出し: "09:12:03 polidog/kyoten（claude-code · /omarchy）" */
+const RE_MINE_HEAD = /^\d\d:\d\d:\d\d +(.+?)（/;
 
-export const ROOMS = ["bouken", "kotonoha", "soto", "teato", "fukuro", "status", "otsuge",
-  "uwasa", "reading-notes"] as const;
+export const ROOMS = ["会話", "自分", "投稿", "作業", "事典", "プロフィール", "週報",
+  "読書メモ"] as const;
 
 function rooms(): [string, string][] {
   return [
-    [join(KYOTEN, "bouken"), "bouken"],
-    [join(KYOTEN, "kotonoha"), "kotonoha"],
-    [join(KYOTEN, "soto"), "soto"],
-    [join(KYOTEN, "teato"), "teato"],
-    [join(KYOTEN, "fukuro"), "fukuro"],
-    [join(KYOTEN, "status"), "status"],
-    [join(KYOTEN, "otsuge"), "otsuge"],
-    [join(KYOTEN, "uwasa"), "uwasa"],
-    [READING_NOTES, "reading-notes"],
+    [join(KYOTEN, "会話"), "会話"],
+    [join(KYOTEN, "自分"), "自分"],
+    [join(KYOTEN, "投稿"), "投稿"],
+    [join(KYOTEN, "作業"), "作業"],
+    [join(KYOTEN, "事典"), "事典"],
+    [join(KYOTEN, "プロフィール"), "プロフィール"],
+    [join(KYOTEN, "週報"), "週報"],
+    [READING_NOTES, "読書メモ"],
   ];
 }
 
@@ -154,13 +153,13 @@ export function build(verbose = true): number {
       const [fields] = splitFrontmatter(text);
       const meta = fileMeta(path, room, fields);
       const shown = displayPath(path, root, room);
-      // ことのはは1日1ファイルで、プロジェクトは見出しにしか書いていない。
+      // 「自分」は1日1ファイルで、プロジェクトは見出しにしか書いていない。
       // 発話本文に見出し記号が混ざったかたまりには直前の値を引き継ぐ
       let carried = meta.project;
       for (const [head, line, body] of chunks(text)) {
         let project = meta.project;
-        if (room === "kotonoha") {
-          const got = RE_KOTONOHA_HEAD.exec(head);
+        if (room === "自分") {
+          const got = RE_MINE_HEAD.exec(head);
           if (got) carried = got[1];
           project = carried;
         }
@@ -189,7 +188,7 @@ export function build(verbose = true): number {
   renameSync(tmp, DB);
   if (verbose) {
     const mb = (statSync(DB).size / 1e6).toFixed(1);
-    console.error(`ルーラ: ${n(nFiles)} ファイル / ${n(rows.length)} かたまりを刻んだ （${mb} MB）`);
+    console.error(`検索: ${n(nFiles)} ファイル / ${n(rows.length)} かたまりを刻んだ （${mb} MB）`);
   }
   return rows.length;
 }
@@ -341,7 +340,7 @@ function main(): number {
   }
 
   if (!existsSync(DB)) {
-    console.error("索引がありません。ruula.ts --rebuild を先に。");
+    console.error("索引がありません。search.ts --rebuild を先に。");
     return 1;
   }
 
@@ -361,7 +360,10 @@ function main(): number {
     ).all() as { room: string; n: number; a: string; b: string }[];
     for (const row of grouped) {
       const span = row.a ? `${row.a} 〜 ${row.b}` : "";
-      console.log(`    ${row.room.padEnd(14)} ${n(row.n).padStart(7)}  ${span}`);
+      // 部屋の名前は日本語なので、`padEnd`（UTF-16 の単位）では枠が揃わない。
+      // かな・漢字・カタカナを幅2として数え直す（落とし穴24 と同じ話）。
+      const w = [...row.room].reduce((a, c) => a + ((c.codePointAt(0) ?? 0) > 0x2e7f ? 2 : 1), 0);
+      console.log(`    ${row.room}${" ".repeat(Math.max(1, 14 - w))} ${n(row.n).padStart(7)}  ${span}`);
     }
     console.log(`  索引 : ${DB} (${(statSync(DB).size / 1e6).toFixed(1)} MB)`);
     con.close();

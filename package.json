@@ -2,7 +2,7 @@
   "name": "kyoten",
   "private": true,
   "type": "module",
-  "description": "記憶を保全して、そこから自分を見つけ出すための道具箱",
+  "description": "自分と AI の行動記録を集めて、そこから相棒（アイボ）を育てるための道具箱",
   "engines": {
     "node": ">=24"
   }

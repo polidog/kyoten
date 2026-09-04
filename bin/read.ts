@@ -1,23 +1,23 @@
 /**
- * yomi — 拠点を読む
+ * read — 拠点を読む
  *
- * 城（`shiro.ts`）と つよさ（`tsuyosa.ts`）が共通で使う読み取り層。
- * ここは**読むだけ**で、拠点には一切書かない（掟5: 書き込み口を絞る）。
+ * ブラウザ（`web.ts`）と端末（`browse.ts`）が共通で使う読み取り層。
+ * ここは**読むだけ**で、拠点には一切書かない（原則5: 書き込み口を絞る）。
  *
  * 数える値は frontmatter と表から取り、本文は見出しで切ったまま渡す。
  * 箇条書きの書式に賭けてパースを増やすより、原文をそのまま見せるほうが
- * 掟3（原文ママ）に合う。パースするのは「並べ替えと絵に要る値」だけ。
+ * 原則3（原文ママ）に合う。パースするのは「並べ替えと絵に要る値」だけ。
  */
 
 import { existsSync, statSync } from "node:fs";
 import { join, normalize, relative } from "node:path";
 
-import { KYOTEN, readText, splitFrontmatter } from "./dougu.ts";
+import { KYOTEN, readText, splitFrontmatter } from "./util.ts";
 import { listFiles } from "./cli.ts";
 
 // ---------------------------------------------------------------- 切る
 
-/** 見出しの `.` は `\r` にマッチしない（踏んだ罠23）。`[^\n]` で書く。 */
+/** 見出しの `.` は `\r` にマッチしない（落とし穴23）。`[^\n]` で書く。 */
 const RE_H = /^(#{1,6}) +([^\n]*)$/;
 
 export interface Section {
@@ -90,7 +90,7 @@ export function num(s: string | undefined): number {
   return Number.isNaN(v) ? 0 : v;
 }
 
-/** 拠点の年数の数え方は status.ts と同じ（終わりの年 − 始まりの年 + 1）。 */
+/** 拠点の年数の数え方は profile.ts と同じ（終わりの年 − 始まりの年 + 1）。 */
 export function years(first: string, last: string): number {
   if (!first || !last) return 0;
   return Number(last.slice(0, 4)) - Number(first.slice(0, 4)) + 1;
@@ -101,7 +101,7 @@ export function years(first: string, last: string): number {
 /**
  * 素材が変わっていなければ読み直さない。
  *
- * 拠点はよるのとばりが書き換えるので、立ち上げっぱなしの城が古いものを
+ * 拠点は定時便が書き換えるので、立ち上げっぱなしのサーバが古いものを
  * 見せないよう、ファイル数と mtime の最大値で見張る。
  */
 const memo = new Map<string, { stamp: string; value: unknown }>();
@@ -132,55 +132,55 @@ function room(...parts: string[]): string {
   return join(KYOTEN, ...parts);
 }
 
-// ---------------------------------------------------------------- ステータス
+// ---------------------------------------------------------------- プロフィール
 
-export interface Tsuyosa {
+export interface Stat {
   readonly label: string;
   readonly value: string;
 }
 
-export interface Nagaku {
+export interface LongTerm {
   readonly name: string;
   readonly first: string;
   readonly last: string;
   readonly years: number;
 }
 
-export interface Ima {
+export interface Now {
   readonly name: string;
   readonly count: number;
 }
 
-export interface Ayumi {
+export interface YearRow {
   readonly year: number;
   readonly commits: number;
   readonly articles: number;
   readonly main: readonly string[];
 }
 
-export interface StatusView {
+export interface ProfileView {
   readonly doc: Doc;
   readonly first: string;
   readonly last: string;
   readonly span: number;
-  readonly tokugi: number;
-  readonly tsuyosa: readonly Tsuyosa[];
-  readonly ima: readonly Ima[];
-  readonly imaHead: string;
-  readonly nagaku: readonly Nagaku[];
-  readonly ayumi: readonly Ayumi[];
+  readonly skills: number;
+  readonly stats: readonly Stat[];
+  readonly now: readonly Now[];
+  readonly nowHead: string;
+  readonly longTerm: readonly LongTerm[];
+  readonly years: readonly YearRow[];
 }
 
-/** `- ぼうけんのしょ　325 さつ` — 見た目を揃える全角スペースで割れている */
-const RE_TSUYOSA = /^([^\d]+?)[ 　]+([\d,]+.*)$/;
+/** `- 会話　　　351 本` — 見た目を揃える全角スペースで割れている */
+const RE_STAT = /^([^\d]+?)[ 　]+([\d,]+.*)$/;
 /** `- typescript 2,812` */
-const RE_IMA = /^(.+?)[ 　]+([\d,]+)$/;
+const RE_NOW = /^(.+?)[ 　]+([\d,]+)$/;
 /** `- php 2006-11 〜 2026-09（21年）` */
-const RE_NAGAKU = /^(.+?)[ 　]+(\S+)[ 　]*〜[ 　]*(\S+)（(\d+)年）$/;
+const RE_LONG = /^(.+?)[ 　]+(\S+)[ 　]*〜[ 　]*(\S+)（(\d+)年）$/;
 
-function parseAyumi(sec: Section | null): Ayumi[] {
+function parseYears(sec: Section | null): YearRow[] {
   if (!sec) return [];
-  const out: Ayumi[] = [];
+  const out: YearRow[] = [];
   for (const line of sec.lines) {
     const s = line.trim();
     if (!s.startsWith("|")) continue;
@@ -198,32 +198,32 @@ function parseAyumi(sec: Section | null): Ayumi[] {
   return out;
 }
 
-export function status(): StatusView | null {
-  const abs = room("status", "status.md");
-  return cached("status", [abs], () => {
+export function profile(): ProfileView | null {
+  const abs = room("プロフィール", "プロフィール.md");
+  return cached("profile", [abs], () => {
     if (!existsSync(abs)) return null;
     const doc = readDoc(abs);
     const first = doc.fields.first ?? "";
     const last = doc.fields.last ?? "";
-    const imaSec = section(doc, "いま手が動いているもの");
+    const nowSec = section(doc, "いま手が動いているもの");
 
-    const tsuyosa: Tsuyosa[] = [];
-    for (const b of bullets(section(doc, "つよさ"))) {
-      const got = RE_TSUYOSA.exec(b);
-      tsuyosa.push(got ? { label: got[1].trim(), value: got[2].trim() } : { label: b, value: "" });
+    const stats: Stat[] = [];
+    for (const b of bullets(section(doc, "記録の量"))) {
+      const got = RE_STAT.exec(b);
+      stats.push(got ? { label: got[1].trim(), value: got[2].trim() } : { label: b, value: "" });
     }
 
-    const ima: Ima[] = [];
-    for (const b of bullets(imaSec)) {
-      const got = RE_IMA.exec(b);
-      if (got) ima.push({ name: got[1].trim(), count: num(got[2]) });
+    const now: Now[] = [];
+    for (const b of bullets(nowSec)) {
+      const got = RE_NOW.exec(b);
+      if (got) now.push({ name: got[1].trim(), count: num(got[2]) });
     }
 
-    const nagaku: Nagaku[] = [];
+    const longTerm: LongTerm[] = [];
     for (const b of bullets(section(doc, "長くいっしょにいるもの"))) {
-      const got = RE_NAGAKU.exec(b);
+      const got = RE_LONG.exec(b);
       if (got) {
-        nagaku.push({
+        longTerm.push({
           name: got[1].trim(),
           first: got[2],
           last: got[3],
@@ -237,19 +237,19 @@ export function status(): StatusView | null {
       first,
       last,
       span: years(first, last),
-      tokugi: num(doc.fields.tokugi),
-      tsuyosa,
-      ima,
-      imaHead: imaSec?.head ?? "いま手が動いているもの",
-      nagaku,
-      ayumi: parseAyumi(section(doc, "あゆみ")),
+      skills: num(doc.fields.skills),
+      stats,
+      now,
+      nowHead: nowSec?.head ?? "いま手が動いているもの",
+      longTerm,
+      years: parseYears(section(doc, "あゆみ")),
     };
   });
 }
 
-// ---------------------------------------------------------------- とくぎ
+// ---------------------------------------------------------------- スキル
 
-export interface Tokugi {
+export interface Skill {
   readonly name: string;
   readonly first: string;
   readonly last: string;
@@ -259,9 +259,9 @@ export interface Tokugi {
   readonly path: string;
 }
 
-export function tokugiList(): readonly Tokugi[] {
-  const paths = listFiles(room("status", "tokugi"), ".md");
-  return cached("tokugi", paths, () =>
+export function skillList(): readonly Skill[] {
+  const paths = listFiles(room("プロフィール", "スキル"), ".md");
+  return cached("skill", paths, () =>
     paths.map((abs) => {
       const doc = readDoc(abs);
       const first = doc.fields.first ?? "";
@@ -278,14 +278,14 @@ export function tokugiList(): readonly Tokugi[] {
     }).sort((a, b) => b.files + b.articles - (a.files + a.articles) || a.name.localeCompare(b.name)));
 }
 
-export function tokugi(name: string): Doc | null {
-  const abs = room("status", "tokugi", `${safeName(name)}.md`);
+export function skill(name: string): Doc | null {
+  const abs = room("プロフィール", "スキル", `${safeName(name)}.md`);
   return existsSync(abs) ? readDoc(abs) : null;
 }
 
 // ---------------------------------------------------------------- 年表
 
-export interface Nenpyo {
+export interface TimelineYear {
   readonly year: number;
   readonly commits: number;
   readonly articles: number;
@@ -293,9 +293,9 @@ export interface Nenpyo {
   readonly path: string;
 }
 
-export function nenpyoList(): readonly Nenpyo[] {
-  const paths = listFiles(room("status", "nenpyo"), ".md");
-  return cached("nenpyo", paths, () =>
+export function timelineList(): readonly TimelineYear[] {
+  const paths = listFiles(room("プロフィール", "年表"), ".md");
+  return cached("timeline", paths, () =>
     paths.map((abs) => {
       const doc = readDoc(abs);
       return {
@@ -308,14 +308,14 @@ export function nenpyoList(): readonly Nenpyo[] {
     }).sort((a, b) => a.year - b.year));
 }
 
-export function nenpyo(year: string): Doc | null {
-  const abs = room("status", "nenpyo", `${safeName(year)}.md`);
+export function timeline(year: string): Doc | null {
+  const abs = room("プロフィール", "年表", `${safeName(year)}.md`);
   return existsSync(abs) ? readDoc(abs) : null;
 }
 
-// ---------------------------------------------------------------- おつげ
+// ---------------------------------------------------------------- 週報
 
-export interface OtsugeHead {
+export interface WeeklyHead {
   readonly week: string;
   readonly from: string;
   readonly to: string;
@@ -323,13 +323,13 @@ export interface OtsugeHead {
   readonly path: string;
 }
 
-export function otsugeList(): readonly OtsugeHead[] {
-  const paths = listFiles(room("otsuge"), ".md");
-  return cached("otsuge", paths, () =>
+export function weeklyList(): readonly WeeklyHead[] {
+  const paths = listFiles(room("週報"), ".md");
+  return cached("weekly", paths, () =>
     paths.map((abs) => {
       const doc = readDoc(abs);
       return {
-        week: doc.fields.week || doc.title.replace(/ のおつげ$/, ""),
+        week: doc.fields.week || doc.title.replace(/ の週報$/, ""),
         from: doc.fields.from ?? "",
         to: doc.fields.to ?? "",
         commits: num(doc.fields.commits),
@@ -338,30 +338,30 @@ export function otsugeList(): readonly OtsugeHead[] {
     }).sort((a, b) => a.week.localeCompare(b.week)));
 }
 
-export function otsuge(week: string): Doc | null {
-  const abs = room("otsuge", `${safeName(week)}.md`);
+export function weekly(week: string): Doc | null {
+  const abs = room("週報", `${safeName(week)}.md`);
   return existsSync(abs) ? readDoc(abs) : null;
 }
 
-// ---------------------------------------------------------------- まちのうわさ
+// ---------------------------------------------------------------- 推移
 
-export interface UwasaHead {
+export interface TrendHead {
   readonly week: string;
   readonly from: string;
   readonly to: string;
-  /** その週の終わりまでの累計。おつげの `commits` は週内の数なので別もの */
+  /** その週の終わりまでの累計。週報の `commits` は週内の数なので別もの */
   readonly commits: number;
   readonly projects: number;
   readonly path: string;
 }
 
-export function uwasaList(): readonly UwasaHead[] {
-  const paths = listFiles(room("uwasa"), ".md");
-  return cached("uwasa", paths, () =>
+export function trendList(): readonly TrendHead[] {
+  const paths = listFiles(room("プロフィール", "推移"), ".md");
+  return cached("trend", paths, () =>
     paths.map((abs) => {
       const doc = readDoc(abs);
       return {
-        week: doc.fields.week || doc.title.replace(/ のうわさ$/, ""),
+        week: doc.fields.week || doc.title.replace(/ の推移$/, ""),
         from: doc.fields.from ?? "",
         to: doc.fields.to ?? "",
         commits: num(doc.fields.commits),
@@ -371,14 +371,14 @@ export function uwasaList(): readonly UwasaHead[] {
     }).sort((a, b) => a.week.localeCompare(b.week)));
 }
 
-export function uwasa(week: string): Doc | null {
-  const abs = room("uwasa", `${safeName(week)}.md`);
+export function trend(week: string): Doc | null {
+  const abs = room("プロフィール", "推移", `${safeName(week)}.md`);
   return existsSync(abs) ? readDoc(abs) : null;
 }
 
-// ---------------------------------------------------------------- ふくろ
+// ---------------------------------------------------------------- 事典
 
-export interface FukuroHead {
+export interface EntityHead {
   readonly name: string;
   readonly first: string;
   readonly last: string;
@@ -387,9 +387,9 @@ export interface FukuroHead {
   readonly path: string;
 }
 
-export function fukuroList(): readonly FukuroHead[] {
-  const paths = listFiles(room("fukuro", "project"), ".md");
-  return cached("fukuro", paths, () =>
+export function entityList(): readonly EntityHead[] {
+  const paths = listFiles(room("事典", "プロジェクト"), ".md");
+  return cached("entity", paths, () =>
     paths.map((abs) => {
       const doc = readDoc(abs);
       return {
@@ -406,56 +406,56 @@ export function fukuroList(): readonly FukuroHead[] {
 // ---------------------------------------------------------------- まとめ
 
 /**
- * 城に出すぶん。
+ * ブラウザに出すぶん。
  *
- * ブラウザで見たいのは**まとめ**で、776週の一覧でも71枚のとくぎでもない
+ * ブラウザで見たいのは**まとめ**で、776週の一覧でも71枚のスキルでもない
  * （潜るのは端末の仕事）。だから一覧はどれも頭を落として渡す。
- * おつげだけは節をそのまま持たせる —— 向こうから来た問いは要約しない。
+ * 週報だけは節をそのまま持たせる —— 向こうから来た問いは要約しない。
  */
 export interface Summary {
   readonly first: string;
   readonly last: string;
   readonly span: number;
   readonly lead: string;
-  readonly tsuyosa: readonly Tsuyosa[];
-  readonly imaHead: string;
-  readonly ima: readonly Ima[];
-  readonly nagaku: readonly Nagaku[];
-  readonly ayumi: readonly Ayumi[];
-  readonly tokugi: number;
-  readonly tokugiTop: readonly Tokugi[];
-  readonly basho: readonly FukuroHead[];
+  readonly stats: readonly Stat[];
+  readonly nowHead: string;
+  readonly now: readonly Now[];
+  readonly longTerm: readonly LongTerm[];
+  readonly years: readonly YearRow[];
+  readonly skills: number;
+  readonly skillTop: readonly Skill[];
+  readonly places: readonly EntityHead[];
   readonly weeks: number;
-  readonly konshu: Doc | null;
-  readonly uwasa: Doc | null;
+  readonly weekly: Doc | null;
+  readonly trend: Doc | null;
 }
 
 export function summary(): Summary | null {
-  const s = status();
-  if (!s) return null;
-  const weeks = otsugeList();
+  const p = profile();
+  if (!p) return null;
+  const weeks = weeklyList();
   const last = weeks[weeks.length - 1];
   return {
-    first: s.first,
-    last: s.last,
-    span: s.span,
-    lead: s.doc.lead,
-    tsuyosa: s.tsuyosa,
-    imaHead: s.imaHead,
-    ima: s.ima,
-    nagaku: s.nagaku,
-    ayumi: s.ayumi,
-    tokugi: s.tokugi,
-    tokugiTop: tokugiList().slice(0, 12),
-    basho: fukuroList().slice(0, 8),
+    first: p.first,
+    last: p.last,
+    span: p.span,
+    lead: p.doc.lead,
+    stats: p.stats,
+    nowHead: p.nowHead,
+    now: p.now,
+    longTerm: p.longTerm,
+    years: p.years,
+    skills: p.skills,
+    skillTop: skillList().slice(0, 12),
+    places: entityList().slice(0, 8),
     weeks: weeks.length,
-    konshu: last ? otsuge(last.week) : null,
-    // うわさは週の数がおつげと同じとは限らない（部屋を建てた時点で揃うが、
-    // 片方だけ流した夜がありうる）ので、うわさ側の最後の週から引く
-    uwasa: (() => {
-      const u = uwasaList();
-      const tail = u[u.length - 1];
-      return tail ? uwasa(tail.week) : null;
+    weekly: last ? weekly(last.week) : null,
+    // 推移は週の数が週報と同じとは限らない（部屋を建てた時点で揃うが、
+    // 片方だけ流した夜がありうる）ので、推移側の最後の週から引く
+    trend: (() => {
+      const t = trendList();
+      const tail = t[t.length - 1];
+      return tail ? trend(tail.week) : null;
     })(),
   };
 }

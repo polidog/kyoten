@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * teato — てのあと（作ったもの・詰まったこと）
+ * work — 作ったもの・詰まったこと
  *
  * その日に何を作り、どこで詰まったかを日ごとに束ねる。
  *
@@ -12,10 +12,10 @@
  *   - **会話ログ** —— 失敗した道具呼び出し（`is_error` の tool_result）。
  *     コミットに残らない試行錯誤のうち、機械が確実に拾えるのはここだけ。
  *
- * 出力は `teato/<YYYY-MM>/<YYYY-MM-DD>.md`。プロジェクトごとに
+ * 出力は `作業/<YYYY-MM>/<YYYY-MM-DD>.md`。プロジェクトごとに
  * 「つくった / さわった / つまずいた」の3つに分ける。
  *
- * 掟:
+ * 原則:
  *   - 決定論的: 同じ入力なら必ず同じ出力。コミット日時は JST 固定で読む
  *     （読む側のタイムゾーンで日付が変わると、束ねる日が動く）。
  *   - 冪等: 内容が変わらなければファイルに触れない。
@@ -23,10 +23,10 @@
  *     省いて、省いたと書く。
  *
  * 使い方:
- *     teato.ts                    # 全部
- *     teato.ts --dry-run
- *     teato.ts --since 2026-08-01
- *     teato.ts --quiet
+ *     work.ts                    # 全部
+ *     work.ts --dry-run
+ *     work.ts --since 2026-08-01
+ *     work.ts --quiet
  */
 
 import { execFileSync } from "node:child_process";
@@ -49,11 +49,11 @@ import {
   writeIfChanged,
   ymd,
   type WriteState,
-} from "./dougu.ts";
+} from "./util.ts";
 import { listFiles, parseArgs, parseSince } from "./cli.ts";
 
 const GHQ = join(homedir(), "ghq");
-const ROOM = join(KYOTEN, "teato");
+const ROOM = join(KYOTEN, "作業");
 
 /**
  * 自分のコミットの見分け方。git の --author は複数指定が OR になる。
@@ -122,7 +122,7 @@ interface Commit {
  * ghq の置き場から git リポジトリを拾う。
  *
  * `ghq list` を呼ばないのは、ghq が入っていない場所でも動くようにする
- * ため（掟6・依存を増やさない）。ghq の構造は <host>/<user>/<repo> 固定。
+ * ため（原則6・依存を増やさない）。ghq の構造は <host>/<user>/<repo> 固定。
  *
  * **worktree は数えない。** `git worktree add` で作った作業場所は本体と
  * 同じ履歴を持つので、両方を走査すると同じコミットを 2 回数える（実測で
@@ -218,7 +218,7 @@ interface Trouble {
  *
  * `is_error` は落ちた合図でしかない。`ls … && wc -l …` のように繋げた
  * コマンドは、前半が正常に出力を返していても最後の 1 つがこければ
- * is_error になる。それを全部書き写すと、てのあとが端末のログになって
+ * is_error になる。それを全部書き写すと、作業が端末のログになって
  * 読み返せなくなる。
  */
 function looksStuck(body: string): boolean {
@@ -462,13 +462,13 @@ function renderDay(
   }
 
   const head = frontmatter({
-    room: "teato",
+    room: "作業",
     date,
     commits: commits.length,
     troubles: troubles.length,
     projects: projects.join(", "),
   });
-  return head + `\n\n# ${date} てのあと\n\n` + body.join("\n\n") + "\n";
+  return head + `\n\n# ${date} の作業\n\n` + body.join("\n\n") + "\n";
 }
 
 // ---------------------------------------------------------------- 入口
@@ -552,12 +552,12 @@ function main(): number {
 
   if (args.flags.quiet) {
     console.log(
-      `teato: ${nDays}日 (new ${stats.new} / upd ${stats.updated} ` +
+      `work: ${nDays}日 (new ${stats.new} / upd ${stats.updated} ` +
         `/ same ${stats.same}) つくった ${n(found)} つまずいた ${n(nTroubles)}`,
     );
   } else {
     if (args.flags["dry-run"]) console.log("（書かずに確認）");
-    console.log(`  てのあと     : ${n(nDays)} 日ぶん`);
+    console.log(`  作業         : ${n(nDays)} 日ぶん`);
     console.log(`    あたらしい : ${n(stats.new)}`);
     console.log(`    かきかえ   : ${n(stats.updated)}`);
     console.log(`    かわらず   : ${n(stats.same)}`);

@@ -1,20 +1,20 @@
 #!/usr/bin/env node
 /**
- * shiro — 城（拠点をブラウザで歩く）
+ * web — 拠点のまとめをブラウザに出す
  *
  * Obsidian で眺めても、拠点は「日付順に並んだテキスト」でしかない。
- * ここは23年ぶんを**1枚のまとめ**にして返すだけの城。潜って読むのは
- * 端末（`tsuyosa.ts`）の仕事で、こちらは一覧も検索も持たない。
+ * ここは23年ぶんを**1枚のまとめ**にして返すだけ。潜って読むのは
+ * 端末（`browse.ts`）の仕事で、こちらは一覧も検索も持たない。
  *
- * 掟に沿って:
+ * 原則に沿って:
  *   - 依存を増やさない  `node:http` だけ。npm も build も要らない
  *   - 書き込み口を絞る  拠点には一切書かない。読むだけ
  *   - 外に出さない      127.0.0.1 に固定。--host は用意しない
  *
  * 使い方:
- *     shiro.ts                 # 立ち上げてブラウザを開く
- *     shiro.ts --port 9999
- *     shiro.ts --no-open       # 開かない
+ *     web.ts                 # 立ち上げてブラウザを開く
+ *     web.ts --port 9999
+ *     web.ts --no-open       # 開かない
  */
 
 import { spawn } from "node:child_process";
@@ -23,9 +23,9 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { KYOTEN, n } from "./dougu.ts";
+import { KYOTEN, n } from "./util.ts";
 import { parseArgs } from "./cli.ts";
-import * as yomi from "./yomi.ts";
+import * as vault from "./read.ts";
 
 /** 外向きには開かない。拠点には取引先の実名も認証まわりの試行錯誤も入っている */
 const HOST = "127.0.0.1";
@@ -36,7 +36,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 // ---------------------------------------------------------------- 口
 
 function api(u: URL): unknown {
-  if (u.pathname === "/api/summary") return yomi.summary();
+  if (u.pathname === "/api/summary") return vault.summary();
   return undefined;
 }
 
@@ -59,7 +59,7 @@ function handle(req: IncomingMessage, res: ServerResponse): void {
   try {
     if (u.pathname === "/" || u.pathname === "/index.html") {
       // 立ち上げっぱなしで直しても効くよう、毎回読む（1ファイルなので安い）
-      send(res, 200, "text/html; charset=utf-8", readFileSync(join(HERE, "shiro.html")));
+      send(res, 200, "text/html; charset=utf-8", readFileSync(join(HERE, "web.html")));
       return;
     }
     if (u.pathname.startsWith("/api/")) {
@@ -85,7 +85,7 @@ function open(url: string): void {
   try {
     spawn(cmd, [url], { stdio: "ignore", detached: true }).unref();
   } catch {
-    // 開けなくても城は建っている。住所は下に出してある
+    // 開けなくても立ち上がってはいる。住所は下に出してある
   }
 }
 
@@ -93,10 +93,10 @@ function main(): number {
   const args = parseArgs(process.argv.slice(2), ["no-open", "quiet"], ["port"]);
   const port = Number.parseInt(args.values.port ?? String(PORT), 10) || PORT;
 
-  const s = yomi.status();
+  const s = vault.profile();
   if (!s) {
-    console.error(`拠点にステータスがありません: ${KYOTEN}`);
-    console.error("bin/status.ts を先に流してください。");
+    console.error(`拠点にプロフィールがありません: ${KYOTEN}`);
+    console.error("bin/profile.ts を先に流してください。");
     return 1;
   }
 
@@ -104,24 +104,24 @@ function main(): number {
   server.listen(port, HOST, () => {
     const url = `http://${HOST}:${port}/`;
     if (!args.flags.quiet) {
-      console.error(`城: ${url}`);
+      console.error(`まとめ: ${url}`);
       console.error(
-        `  ${s.first} 〜 ${s.last}（${s.span}年）　とくぎ ${n(s.tokugi)}　` +
-          `おつげ ${n(yomi.otsugeList().length)}週`,
+        `  ${s.first} 〜 ${s.last}（${s.span}年）　スキル ${n(s.skills)}　` +
+          `週報 ${n(vault.weeklyList().length)}週`,
       );
-      console.error("  潜って読むなら bin/tsuyosa.ts");
+      console.error("  潜って読むなら bin/browse.ts");
     }
     if (!args.flags["no-open"]) open(url);
   });
   server.on("error", (err) => {
-    console.error(`城が建ちません: ${err.message}`);
+    console.error(`立ち上がりません: ${err.message}`);
     process.exit(1);
   });
   return 0;
 }
 
 if (import.meta.main) {
-  // listen は非同期なので、そのまま process.exit に渡すと建った端から閉じる
+  // listen は非同期なので、そのまま process.exit に渡すと立ち上がった端から閉じる
   const code = main();
   if (code !== 0) process.exit(code);
 }
