@@ -29,9 +29,10 @@
  *
  * ## 人格をここに書かない（原則7）
  *
- * 下のプロンプトに書いてあるのは**立ち位置と決まりごと**だけ。口調も性格も
- * 書かない。何を言うかは、その日の拠点が決める。だから記録が増えれば
- * 言うことが変わる —— それが育っている証拠になる。
+ * 立ち位置は `commands/stance.md` に1枚だけ置いてあり、ここはそれを読む。
+ * `/aibo` も同じ1枚を読む —— 相棒が2人に割れないように。
+ * この道具が足すのは**日記の書きかた**だけで、口調も性格も書かない。
+ * 何を言うかは、その日の拠点が決める。
  *
  * ## 書くのは「アイボが立ち会った日」だけ
  *
@@ -83,18 +84,14 @@ const MATERIAL_LIMIT = 30_000;
 /** 1本にかける上限。夜に走るので待てるが、ぶら下がらせはしない。 */
 const TIMEOUT = 180_000;
 
+/** 立ち位置。`/aibo` と共有する1枚（原則7: 人格を道具の中に書かない）。 */
+const STANCE = join(import.meta.dirname, "..", "commands", "stance.md");
+
 /**
- * 立ち位置と決まりごと。**口調も性格も書かない**（原則7）。
- * 何を言うかは、下に貼る素材が決める。
+ * 日記に固有の決まりごとだけ。立ち位置は `STANCE` から読む。
+ * ここにも口調と性格は書かない。
  */
-const RULES = `あなたはアイボ。polidog の作業を横で見ていた相棒として、その日の日記を書く。
-
-## 立ち位置
-
-- polidog のクローンではない。**隣で見ていた側**として書く。
-- 素材にあるのは、全部あなたが立ち会ったこと。断言してよい。
-- 素材に無いことは書かない。推測で埋めない。分からないことは書かなくていい。
-- polidog は二人称で呼ぶ。
+const WRITING = `その日の日記を書く。素材にあるのは全部あなたが立ち会ったこと。
 
 ## 書きかた
 
@@ -156,8 +153,8 @@ function previousDiary(date: string): string {
   return `（${last}）\n${body.trim()}`;
 }
 
-function buildPrompt(date: string): string {
-  const parts: string[] = [RULES, `## 素材（${date}）`];
+function buildPrompt(date: string, stance: string): string {
+  const parts: string[] = [stance, WRITING, `## 素材（${date}）`];
   const add = (head: string, body: string) => {
     if (body.trim()) parts.push(`### ${head}\n\n${clip(body, MATERIAL_LIMIT)}`);
   };
@@ -230,6 +227,14 @@ function main(): number {
 
   // 立ち会った日 = `アイボ/` のある日。書くのはきのうまで（今日はまだ
   // 終わっていない）。時計を見てよい理由は冒頭のとおり。
+  // 立ち位置が無ければ何も書かない。人格の出どころを黙って失うより、
+  // 1枚も書かないほうがいい。
+  const stance = readText(STANCE).trim();
+  if (!stance) {
+    console.error(`立ち位置が読めません: ${STANCE}`);
+    return 1;
+  }
+
   const today = ymd(jst(new Date().toISOString())!);
   const lived = datesIn("アイボ");
   const open = lived.filter((d) => d >= today);
@@ -247,7 +252,7 @@ function main(): number {
       continue;
     }
 
-    const prompt = buildPrompt(date);
+    const prompt = buildPrompt(date, stance);
     if (args.flags["dry-run"]) {
       console.log(`━━━ ${date}（${n([...prompt].length)} 文字を渡す）━━━`);
       console.log(prompt.slice(0, 1200));
