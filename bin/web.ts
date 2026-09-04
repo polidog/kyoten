@@ -45,6 +45,8 @@ function list(room: string): unknown {
       return vault.timelineList();
     case "diary":
       return vault.diaryList();
+    case "events":
+      return vault.eventList();
     case "weekly":
       return vault.weeklyList();
     case "trend":

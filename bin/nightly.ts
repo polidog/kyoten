@@ -3,8 +3,9 @@
  * nightly — 定時便
  *
  * 夜のうちに拾って回る。sessions・me・aibo・posts・work・entities・profile・
- * weekly・trend・diary を順に流し、索引を刻み直して、拠点を git commit する。
- * diary だけは中で `claude` を呼ぶ（きのうの日記を1枚書く）。
+ * weekly・trend・diary・events を順に流し、索引を刻み直して、拠点を git commit
+ * する。diary と events は中で `claude` を呼ぶ（きのうの日記と、終わった月の
+ * 出来事を書く）。
  * systemd user timer から呼ばれる。
  *
  * 原則:
@@ -190,6 +191,10 @@ function main(): number {
     // 日記は素材が全部そろってから。中で `claude` を呼ぶので、ここだけ
     // 外に出ていく（相手は API で、拠点の外へ書きはしない）。
     ["diary", common],
+    // 出来事は日記まで読むので、いちばん最後。上限を付けてあるのは、
+    // 書けていない月が溜まっていても夜が1時間走らないようにするため
+    // （追記のみなので、次の便が続きから積む）
+    ["events", [...common, "--limit", "12"]],
   ];
   // 索引は素材が新しければ検索時に自分で刻み直すが、そのぶん最初の
   // 1回を人が待つことになる。夜のうちに刻んでおく。--dry-run のときは

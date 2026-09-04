@@ -55,8 +55,8 @@ const RE_MINE_HEAD = /^\d\d:\d\d:\d\d +(.+?)（/;
 const AIBO_SECTIONS = new Set(["どれだけ動いたか", "つかった道具", "やったこと",
   "言われたこと"]);
 
-export const ROOMS = ["会話", "自分", "アイボ", "日記", "投稿", "作業", "事典",
-  "プロフィール", "週報", "読書メモ"] as const;
+export const ROOMS = ["会話", "自分", "アイボ", "日記", "出来事", "投稿", "作業",
+  "事典", "プロフィール", "週報", "読書メモ"] as const;
 
 function rooms(): [string, string][] {
   return [
@@ -64,6 +64,7 @@ function rooms(): [string, string][] {
     [join(KYOTEN, "自分"), "自分"],
     [join(KYOTEN, "アイボ"), "アイボ"],
     [join(KYOTEN, "日記"), "日記"],
+    [join(KYOTEN, "出来事"), "出来事"],
     [join(KYOTEN, "投稿"), "投稿"],
     [join(KYOTEN, "作業"), "作業"],
     [join(KYOTEN, "事典"), "事典"],
@@ -113,6 +114,10 @@ function* chunks(text: string): Generator<[string, number, string]> {
 
 function fileMeta(path: string, room: string, fields: Record<string, string>) {
   let date = fields.date || (fields.started ?? "").slice(0, 10);
+  // `出来事/` は月ごとに1枚なので日を持たない。空のままにすると
+  // `--since` が `c.date >= ?` で全部落とすので、月のはじめを置く
+  // （並び順のための値で、その日に何かがあったという意味ではない）
+  if (!date && /^\d{4}-\d{2}$/.test(fields.month ?? "")) date = `${fields.month}-01`;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     const got = RE_DATE.exec(path.slice(path.lastIndexOf("/") + 1)) ?? RE_DATE.exec(path);
     date = got ? got[1] : "";

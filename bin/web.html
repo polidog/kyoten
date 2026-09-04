@@ -114,6 +114,38 @@ section:first-child{border-top:0}
 .diary p{margin:0 0 1.15em;line-height:2.05}
 .diary p:last-child{margin-bottom:0}
 
+/* 年表（出来事）。間取りは kani.show から借りた —— 月で束ねて、
+   日付・名前・一言の3つで1行にする。★ はその月でいちばん大きいもの */
+.nen-y{display:flex;align-items:baseline;gap:14px;margin:40px 0 14px;padding-bottom:7px;
+  border-bottom:2px solid var(--line)}
+.nen-y:first-child{margin-top:8px}
+.nen-y h3{font-size:27px;letter-spacing:.05em}
+.nen-y .n{color:var(--muted);font-size:12.5px}
+.nen-y .go{margin-left:auto;font-size:12.5px;font-family:"DotGothic16",monospace;text-decoration:none}
+.nen-m{display:grid;grid-template-columns:78px 1fr;gap:0 16px;align-items:start}
+.nen-mon{font-family:"DotGothic16",monospace;font-size:14px;color:var(--ink-soft);
+  text-align:right;padding:9px 0 0;position:sticky;top:56px}
+.nen-mon i{display:block;font-style:normal;font-size:11px;color:var(--muted)}
+.nen-in{border-left:2px solid var(--line);padding:4px 0 20px}
+.nen-lead{color:var(--muted);font-size:12.5px;line-height:1.75;margin:0 0 4px;padding:4px 0 4px 20px}
+.nen-tail{color:var(--ink-soft);font-size:12.5px;line-height:1.75;margin:6px 0 0;
+  padding:7px 0 0 20px;border-top:1px dashed var(--line-soft)}
+.ev{display:block;position:relative;padding:5px 8px 5px 20px;color:inherit;text-decoration:none}
+.ev::before{content:"";position:absolute;left:-5px;top:15px;width:8px;height:8px;
+  background:var(--line);border:2px solid var(--ground)}
+.ev:hover{background:var(--sunk)}
+.ev time{font-family:"JetBrains Mono",monospace;font-size:12px;color:var(--muted);margin-right:10px}
+.ev b{font-weight:500}
+.ev .say{color:var(--ink-soft);font-size:13px;margin-left:8px}
+.ev.big::before{left:-7px;top:13px;width:12px;height:12px;background:var(--blue)}
+.ev.big b{color:var(--blue);font-size:16.5px}
+.ev.big .say{color:var(--ink)}
+@media (max-width:620px){
+  .nen-m{grid-template-columns:1fr;gap:0}
+  .nen-mon{text-align:left;position:static;padding:12px 0 2px}
+  .nen-mon i{display:inline;margin-left:8px}
+}
+
 /* こんしゅうの 週報 */
 .report{border:3px solid var(--ok);background:var(--surface);padding:22px 26px;margin:0 5px}
 .report .o-title{font-family:"DotGothic16",monospace;font-size:17px;color:var(--ok);letter-spacing:.03em}
@@ -245,7 +277,7 @@ mark{background:var(--gold-wash);color:var(--ink);border-bottom:1px solid var(--
   <a class="nav" href="#/list/weekly">週報</a>
   <a class="nav" href="#/list/trend">推移</a>
   <a class="nav" href="#/list/skill">スキル</a>
-  <a class="nav" href="#/list/timeline">年表</a>
+  <a class="nav" href="#/list/events">年表</a>
   <a class="nav" href="#/list/entity">事典</a>
   <a class="nav" href="#/tree/">部屋</a>
   <form id="find"><input id="q" type="search" placeholder="さがす（/ で飛ぶ）" autocomplete="off"></form>
@@ -723,6 +755,66 @@ function skillCard(t, maxYears) {
     '<div class="tk-num">記事 ' + num(t.articles) + "　ファイル " + num(t.files) + "</div></a>";
 }
 
+var MONTHS = ["一月", "二月", "三月", "四月", "五月", "六月",
+  "七月", "八月", "九月", "十月", "十一月", "十二月"];
+
+/**
+ * 年表を描く。年で束ねて、その中を月で束ねる。
+ *
+ * 新しい年が上（この画面のほかの一覧と同じ向き）。1つの月の中だけは
+ * 書かれたとおりの順（古い順）で、そこが出来事の流れになる。
+ */
+function renderNenpyo(months, years0) {
+  // 年の合計は `プロフィール/年表/` から借りる。書けている月を足し上げると、
+  // まだ書いていない月のぶん少ない数になって、同じ年について2つの数が
+  // 出てしまう（落とし穴21）
+  var total = {};
+  years0.forEach(function (y) { total[String(y.year)] = y; });
+  var byYear = {};
+  var years = [];
+  months.forEach(function (m) {
+    var y = m.month.slice(0, 4);
+    if (!byYear[y]) { byYear[y] = []; years.push(y); }
+    byYear[y].push(m);
+  });
+  years.sort().reverse();
+
+  var out = [];
+  years.forEach(function (y) {
+    var inYear = byYear[y].slice().sort(function (a, b) {
+      return b.month.localeCompare(a.month);
+    });
+    var sum = total[y];
+    var counts = [];
+    if (sum) {
+      if (sum.commits) counts.push("コミット " + num(sum.commits));
+      if (sum.articles) counts.push("記事 " + num(sum.articles));
+    }
+    if (inYear.length < 12) counts.push("書けた月 " + num(inYear.length));
+    out.push('<div class="nen-y"><h3>' + esc(y) + "</h3>" +
+      '<span class="n">' + esc(counts.join(" / ")) + "</span>" +
+      '<a class="go" href="' + docHref("プロフィール/年表/" + y + ".md") + '">かずで見る ▶</a></div>');
+
+    inYear.forEach(function (m) {
+      var mi = parseInt(m.month.slice(5, 7), 10) - 1;
+      out.push('<div class="nen-m">');
+      out.push('<div class="nen-mon">' + esc(MONTHS[mi] || m.month) +
+        "<i>" + esc(m.month) + "</i></div>");
+      out.push('<div class="nen-in">');
+      if (m.lead) out.push('<p class="nen-lead">' + esc(m.lead) + "</p>");
+      m.events.forEach(function (e) {
+        out.push('<a class="ev' + (e.big ? " big" : "") + '" href="' + docHref(m.path) + '">' +
+          "<time>" + esc(e.date.replace("-", ".")) + "</time>" +
+          "<b>" + esc(e.name) + "</b>" +
+          (e.note ? '<span class="say">' + esc(e.note) + "</span>" : "") + "</a>");
+      });
+      if (m.tail) out.push('<p class="nen-tail">' + esc(m.tail) + "</p>");
+      out.push("</div></div>");
+    });
+  });
+  return out.join("");
+}
+
 function placeCard(p) {
   return '<a class="bs" href="' + docHref(p.path) + '"><div class="bs-name">' + esc(p.name) + "</div>" +
     '<div class="bs-when">' + esc(p.first) + " 〜 " + esc(p.last) + "</div>" +
@@ -736,15 +828,22 @@ var LISTS = {
   weekly: { kicker: "週報", title: "週ごとの 観測", note: "その週の終わりまでに分かっていたことだけで書いてある。" },
   trend: { kicker: "推移", title: "つもった もの", note: "累計は「拠点にあるもの」の累計であって、起きたことの累計ではない。" },
   skill: { kicker: "スキル", title: "くりかえし あらわれる かた", note: "手が動いたファイルと書いた記事から起こしたもの。" },
-  timeline: { kicker: "年表", title: "としごとの かたち", note: "コミットと記事の数で見た23年。" },
+  timeline: { kicker: "かず", title: "としごとの かたち", note: "コミットと記事の数で見た23年。出来事で見るなら<a href=\"#/list/events\">年表</a>。" },
+  events: {
+    kicker: "年表", title: "なにが あった か",
+    note: "アイボが月ごとに書いたもの。<b>★</b> はその月でいちばん大きかったもの。" +
+      "数で見た年表は<a href=\"#/list/timeline\">としごとのかたち</a>にある。",
+  },
   entity: { kicker: "事典", title: "プロジェクトの 台帳", note: "会話とコミットを、プロジェクトごとに畳んだもの。" },
 };
 
-function renderList(kind, items) {
+function renderList(kind, items, extra) {
   var meta = LISTS[kind];
-  var head = secHead(meta.kicker + "　" + num(items.length), meta.title, esc(meta.note));
+  // note は画面に直に書いてある文字列。ほかの secHead と同じく HTML のまま渡す
+  var head = secHead(meta.kicker + "　" + num(items.length), meta.title, meta.note);
   var out = ['<section>'];
-  out.push(kind === "diary" ? '<div class="aibo-row">' + aibo(true) + head + "</div>" : head);
+  var byAibo = kind === "diary" || kind === "events";
+  out.push(byAibo ? '<div class="aibo-row">' + aibo(true) + head + "</div>" : head);
 
   if (kind === "diary") {
     out.push('<div class="rows">');
@@ -772,6 +871,8 @@ function renderList(kind, items) {
     out.push('<div class="skills">');
     items.forEach(function (t) { out.push(skillCard(t, maxYears)); });
     out.push("</div>");
+  } else if (kind === "events") {
+    out.push(renderNenpyo(items, extra || []));
   } else if (kind === "timeline") {
     var maxC = Math.max.apply(null, items.map(function (a) { return a.commits; }).concat([1]));
     out.push('<div class="rows">');
@@ -868,7 +969,7 @@ function renderDoc(doc) {
 
 // ---------------------------------------------------------------- さがす
 
-var ROOMS = ["会話", "自分", "アイボ", "日記", "投稿", "作業", "事典", "プロフィール", "週報", "読書メモ"];
+var ROOMS = ["会話", "自分", "アイボ", "日記", "出来事", "投稿", "作業", "事典", "プロフィール", "週報", "読書メモ"];
 var findRoom = "";
 
 async function renderSearch(q) {
@@ -906,7 +1007,8 @@ async function renderSearch(q) {
 /** 拠点の住所 → うわばりのどの札か */
 var OF_ROOM = [
   ["プロフィール/スキル", "#/list/skill"],
-  ["プロフィール/年表", "#/list/timeline"],
+  ["プロフィール/年表", "#/list/events"],
+  ["出来事", "#/list/events"],
   ["プロフィール/推移", "#/list/trend"],
   ["日記", "#/list/diary"],
   ["週報", "#/list/weekly"],
@@ -915,6 +1017,8 @@ var OF_ROOM = [
 
 function navOf(hash) {
   if (hash === "#/" || hash === "") return "#/";
+  // 数で見た年表（`#/list/timeline`）は札を持たないので、年表の札を光らせる
+  if (hash === "#/list/timeline") return "#/list/events";
   if (hash.indexOf("#/list/") === 0) return hash.split("/").slice(0, 3).join("/");
   if (hash.indexOf("#/doc/") === 0) {
     var path = unurl(hash.slice(6));
@@ -950,7 +1054,8 @@ async function route() {
     }
     if (kind === "list") {
       var items = await get("/api/list?room=" + u(rest));
-      renderList(rest, items);
+      // 年表は年の合計を `プロフィール/年表/` から借りるので、そちらも取る
+      renderList(rest, items, rest === "events" ? await get("/api/list?room=timeline") : null);
       return;
     }
     if (kind === "tree") {

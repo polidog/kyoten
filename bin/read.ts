@@ -14,6 +14,9 @@ import { dirname, join, normalize, relative } from "node:path";
 
 import { KYOTEN, readText, splitFrontmatter } from "./util.ts";
 import { listFiles } from "./cli.ts";
+// 年表の1行の形。書いた側から借りる（`events.ts` は `import.meta.main` で
+// 守ってあるので、import しただけでは走らない —— 落とし穴21）
+import { EVENT_LINE } from "./events.ts";
 
 // ---------------------------------------------------------------- 切る
 
@@ -329,6 +332,86 @@ export function timeline(year: string): Doc | null {
   return existsSync(abs) ? readDoc(abs) : null;
 }
 
+// ---------------------------------------------------------------- 出来事
+
+/**
+ * 年表の1行。
+ *
+ * ここは冒頭の「パースするのは並べ替えと絵に要る値だけ」の例外に見えるが、
+ * そうではない —— `出来事/` の行は**書き手が形を決めて書いている**もので、
+ * 箇条書きの書式に賭けているわけではない。形は `events.ts` の
+ * `EVENT_LINE` が正で、ここは借りている（落とし穴21: 同じものを2か所で
+ * 別々に解釈させない）。
+ */
+export interface Event {
+  /** `MM-DD`。年は月の側が持っている */
+  readonly date: string;
+  /** その月でいちばん大きいもの。1か月に1つまで */
+  readonly big: boolean;
+  readonly name: string;
+  readonly note: string;
+}
+
+export interface EventMonth {
+  readonly month: string;
+  /** 誰が書いたか。日記と同じく書き手が LLM なので機種を残す */
+  readonly by: string;
+  /** 出来事の前に置かれた、その月がどういう月だったか */
+  readonly lead: string;
+  /** 出来事のあとに置かれた、言いたいこと1行。無いこともある */
+  readonly tail: string;
+  readonly commits: number;
+  readonly articles: number;
+  readonly events: readonly Event[];
+  readonly path: string;
+}
+
+export function eventList(): readonly EventMonth[] {
+  const paths = listFiles(room("出来事"), ".md");
+  return cached("events", paths, () =>
+    paths.map((abs) => {
+      const doc = readDoc(abs);
+      const events: Event[] = [];
+      const lead: string[] = [];
+      const tail: string[] = [];
+      for (const raw of doc.body.split("\n")) {
+        const line = raw.replace(/\r$/, "").trim();
+        const got = EVENT_LINE.exec(line);
+        if (got) {
+          events.push({
+            date: got[2],
+            big: Boolean(got[1]),
+            name: got[3].trim(),
+            note: (got[4] ?? "").trim(),
+          });
+        } else if (!line) {
+          continue;
+        } else if (!events.length) {
+          // 出来事の前が前置き、あとが「言いたいこと」。どちらも捨てない
+          // —— 出来事だけ拾って地の文を落とすと、書いた側の声が消える
+          lead.push(line);
+        } else {
+          tail.push(line);
+        }
+      }
+      return {
+        month: doc.fields.month || doc.title.replace(/ の出来事$/, ""),
+        by: doc.fields.by ?? "",
+        lead: lead.join(" "),
+        tail: tail.join(" "),
+        commits: num(doc.fields.commits),
+        articles: num(doc.fields.articles),
+        events,
+        path: doc.path,
+      };
+    }).sort((a, b) => a.month.localeCompare(b.month)));
+}
+
+export function events(month: string): Doc | null {
+  const abs = room("出来事", `${safeName(month)}.md`);
+  return existsSync(abs) ? readDoc(abs) : null;
+}
+
 // ---------------------------------------------------------------- 週報
 
 export interface WeeklyHead {
@@ -476,6 +559,8 @@ export interface Summary {
   readonly diary: Doc | null;
   readonly diaryDate: string;
   readonly diaries: number;
+  /** 出来事が書けている月の数。年表の見出しに出す */
+  readonly eventMonths: number;
 }
 
 export function summary(): Summary | null {
@@ -512,6 +597,7 @@ export function summary(): Summary | null {
     })(),
     diaryDate: diaryList().at(-1)?.date ?? "",
     diaries: diaryList().length,
+    eventMonths: eventList().length,
   };
 }
 
