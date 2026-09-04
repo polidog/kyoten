@@ -122,7 +122,7 @@ interface Commit {
  * ghq の置き場から git リポジトリを拾う。
  *
  * `ghq list` を呼ばないのは、ghq が入っていない場所でも動くようにする
- * ため（原則6・依存を増やさない）。ghq の構造は <host>/<user>/<repo> 固定。
+ * ため（原則6・依存を増やさない）。`aibo.ts` も同じ畳み方を借りる。ghq の構造は <host>/<user>/<repo> 固定。
  *
  * **worktree は数えない。** `git worktree add` で作った作業場所は本体と
  * 同じ履歴を持つので、両方を走査すると同じコミットを 2 回数える（実測で
@@ -130,7 +130,7 @@ interface Commit {
  * 数字が動いてしまう）。本体の `.git` はディレクトリ、worktree の
  * `.git` はファイルなので、そこで見分ける。
  */
-function repos(): string[] {
+export function repos(): string[] {
   if (!existsSync(GHQ)) return [];
   const found: string[] = [];
   for (const rel of globSync("*/*/*/.git", { cwd: GHQ })) {
@@ -388,7 +388,7 @@ function* troublesFromCodex(path: string): Generator<Trouble> {
  * に見える。git 側は常にリポジトリのルートを名乗るので、放っておくと
  * 「つくった」と「つまずいた」が同じ日の別々の見出しに割れる。
  */
-function fold(slug: string, known: ReadonlySet<string>): string {
+export function fold(slug: string, known: ReadonlySet<string>): string {
   if (known.has(slug)) return slug;
   const parts = slug.split("/");
   for (let i = parts.length - 1; i > 0; i--) {
@@ -570,4 +570,11 @@ function main(): number {
   return failed ? 1 : 0;
 }
 
-process.exit(main());
+/** 畳む相手の一覧。`aibo.ts` が `fold()` と組で借りる。 */
+export function knownProjects(): ReadonlySet<string> {
+  return new Set(repos().map((r) => slugFromCwd(r)));
+}
+
+// `aibo.ts` が repos/fold を借りるので、素で import しても走らせない
+// （守らないと import した瞬間に 857 日ぶんを書き直しにいく）
+if (import.meta.main) process.exit(main());

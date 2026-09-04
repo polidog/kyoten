@@ -2,7 +2,7 @@
 /**
  * nightly — 定時便
  *
- * 夜のうちに拾って回る。sessions・me・posts・work・entities・profile・
+ * 夜のうちに拾って回る。sessions・me・aibo・posts・work・entities・profile・
  * weekly・trend を順に流し、索引を刻み直して、拠点を git commit する。
  * systemd user timer から呼ばれる。
  *
@@ -37,7 +37,8 @@ const BIN = dirname(fileURLToPath(import.meta.url));
 const STEP_TIMEOUT = 600_000;
 
 /** 拠点の部屋。コミットのメッセージに数を出すのに使う。 */
-const ROOMS: readonly string[] = ["会話", "自分", "投稿", "作業", "事典", "プロフィール", "週報"];
+const ROOMS: readonly string[] = ["会話", "自分", "アイボ", "投稿", "作業", "事典",
+  "プロフィール", "週報"];
 
 /**
  * 道具を1本流す。戻り値は [成功したか, 1行の報告]。
@@ -178,6 +179,7 @@ function main(): number {
   const steps: [string, string[]][] = [
     ["sessions", common],
     ["me", common],
+    ["aibo", common],
     ["posts", common],
     ["work", common],
     ["entities", common],

@@ -7,6 +7,7 @@
  * 刻む対象:
  *     会話/        会話の原文
  *     自分/        polidog の発言だけ
+ *     アイボ/      AI が何をしたか
  *     投稿/ 作業/ 事典/ プロフィール/ 週報/
  *     ~/Documents/Obsidian/reading-notes/   読み専用の水源
  *
@@ -46,13 +47,20 @@ const RE_DATE = /(\d{4}-\d{2}-\d{2})/;
 /** 「自分」の見出し: "09:12:03 polidog/kyoten（claude-code · /omarchy）" */
 const RE_MINE_HEAD = /^\d\d:\d\d:\d\d +(.+?)（/;
 
-export const ROOMS = ["会話", "自分", "投稿", "作業", "事典", "プロフィール", "週報",
-  "読書メモ"] as const;
+/**
+ * 「アイボ」でプロジェクト名ではない見出し。ここに無くて、しかも空白を
+ * 含まないものをプロジェクト名とみなす（`# 2026-09-03 のアイボ` は空白で落ちる）。
+ */
+const AIBO_SECTIONS = new Set(["どれだけ動いたか", "つかった道具", "やったこと"]);
+
+export const ROOMS = ["会話", "自分", "アイボ", "投稿", "作業", "事典", "プロフィール",
+  "週報", "読書メモ"] as const;
 
 function rooms(): [string, string][] {
   return [
     [join(KYOTEN, "会話"), "会話"],
     [join(KYOTEN, "自分"), "自分"],
+    [join(KYOTEN, "アイボ"), "アイボ"],
     [join(KYOTEN, "投稿"), "投稿"],
     [join(KYOTEN, "作業"), "作業"],
     [join(KYOTEN, "事典"), "事典"],
@@ -153,14 +161,17 @@ export function build(verbose = true): number {
       const [fields] = splitFrontmatter(text);
       const meta = fileMeta(path, room, fields);
       const shown = displayPath(path, root, room);
-      // 「自分」は1日1ファイルで、プロジェクトは見出しにしか書いていない。
-      // 発話本文に見出し記号が混ざったかたまりには直前の値を引き継ぐ
+      // 「自分」と「アイボ」は1日1ファイルで、プロジェクトは見出しにしか
+      // 書いていない。見出しの無いかたまりには直前の値を引き継ぐ
       let carried = meta.project;
       for (const [head, line, body] of chunks(text)) {
         let project = meta.project;
         if (room === "自分") {
           const got = RE_MINE_HEAD.exec(head);
           if (got) carried = got[1];
+          project = carried;
+        } else if (room === "アイボ") {
+          if (head && !head.includes(" ") && !AIBO_SECTIONS.has(head)) carried = head;
           project = carried;
         }
         rows.push([room, shown, project, meta.date, meta.source, head, line, body]);
