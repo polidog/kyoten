@@ -483,15 +483,15 @@ export interface DiaryHead {
   readonly by: string;
   readonly lead: string;
   readonly path: string;
-  /** その日に感想を返した読者。一覧で「返事が来ている日」が分かるように */
+  /** 同じ日を外から書いた者。一覧で「よそも書いた日」が分かるように */
   readonly readBy: readonly string[];
 }
 
 export function diaryList(): readonly DiaryHead[] {
   const paths = listFiles(room("日記"), ".md");
-  // 感想は読者ごとに1枚あるので、日ごとに引くと日数×読者数だけ舐めることに
-  // なる。ここで1回だけ並べて、ファイル名から日付と読者に割る
-  const said = listFiles(room("感想"), ".md");
+  // よその日記は書き手ごとに1枚あるので、日ごとに引くと日数×書き手数だけ
+  // 舐めることになる。ここで1回だけ並べて、ファイル名から日付と書き手に割る
+  const said = listFiles(room("よその日記"), ".md");
   return cached("diary", [...paths, ...said], () => {
     const readers = new Map<string, string[]>();
     for (const abs of said) {
@@ -520,25 +520,26 @@ export function diary(date: string): Doc | null {
   return existsSync(abs) ? readDoc(abs) : null;
 }
 
-// ---------------------------------------------------------------- 感想
+// ---------------------------------------------------------------- よその日記
 
-export interface CommentHead {
-  /** 誰が読んだか。日記の `by` と同じで、書き手が LLM なので機種を残す */
+export interface GuestHead {
+  /** 誰が書いたか。日記の `by` と同じで、書き手が LLM なので機種を残す */
   readonly by: string;
   readonly doc: Doc;
 }
 
 /**
- * その日の日記に付いた感想。
+ * その日を外から書いた日記。
  *
- * 日記は1日1枚なので日付で引けるが、感想は**読者ごとに1枚**なので
- * 引けない。`感想/YYYY-MM/YYYY-MM-DD-<読者>.md` を前方一致で拾う。
+ * アイボの日記は1日1枚なので日付で引けるが、よその日記は**書き手ごとに
+ * 1枚**なので引けない。`よその日記/YYYY-MM/YYYY-MM-DD-<書き手>.md` を
+ * 前方一致で拾う。
  *
- * 無い日がふつうにある（読者がこけた日、まだ書いていない日）。
- * 感想が無いことは日記が読めない理由にならないので、空で返す。
+ * 無い日がふつうにある（書き手がこけた日、ニュースが取れなかった日）。
+ * よそが無いことはアイボの日記が読めない理由にならないので、空で返す。
  */
-export function commentsOn(date: string): readonly CommentHead[] {
-  const dir = room("感想", safeName(date).slice(0, 7));
+export function guestOn(date: string): readonly GuestHead[] {
+  const dir = room("よその日記", safeName(date).slice(0, 7));
   if (!existsSync(dir)) return [];
   const head = `${safeName(date)}-`;
   return listFiles(dir, ".md")
@@ -599,7 +600,7 @@ export function stock(date: string): Doc | null {
 /**
  * その日の値に付いた見立て。
  *
- * 感想（読者ごとに1枚）と違って1日1枚なので、日付でそのまま引ける。
+ * よその日記（書き手ごとに1枚）と違って1日1枚なので、日付でそのまま引ける。
  * 見立ての無い日はふつうにある（`stock.ts` を流したが `outlook.ts` を
  * まだ流していない日）。無いことは値が読めない理由にならないので null。
  */
@@ -663,8 +664,8 @@ export interface Summary {
   readonly diary: Doc | null;
   readonly diaryDate: string;
   readonly diaries: number;
-  /** その日記に返ってきた感想。まとめでも日記のすぐ下に出す */
-  readonly diaryComments: readonly CommentHead[];
+  /** 同じ日を外から書いた日記。まとめでもアイボの日記のすぐ下に出す */
+  readonly diaryComments: readonly GuestHead[];
   /** 出来事が書けている月の数。年表の見出しに出す */
   readonly eventMonths: number;
   /** いちばん新しい株の1日。持っていなければ null */
@@ -711,7 +712,7 @@ export function summary(): Summary | null {
     })(),
     diaryDate: diaryList().at(-1)?.date ?? "",
     diaries: diaryList().length,
-    diaryComments: commentsOn(diaryList().at(-1)?.date ?? ""),
+    diaryComments: guestOn(diaryList().at(-1)?.date ?? ""),
     eventMonths: eventList().length,
     // 株もいちばん新しい1日だけ。持っていなければ全部 null / 0 になる
     stock: (() => {

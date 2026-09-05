@@ -166,6 +166,7 @@ section:first-child{border-top:0}
 .o-sec p{font-size:13.5px;color:var(--ink-soft);margin:0 0 16px}
 .o-sec li b,.o-sec p b{color:var(--ink)}
 .more{font-family:"DotGothic16",monospace;font-size:12.5px;margin-top:14px}
+.more .when{color:var(--muted)}
 
 /* スキル */
 .skills{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:12px}
@@ -535,7 +536,7 @@ var AIBO_B = [
 var AIBO_EYES = [[6, 8], [17, 19]];
 
 /**
- * シェパード —— 日記を読んで感想を返す、よその家の犬。
+ * シェパード —— 同じ日を外から書く、よその家の犬。
  *
  * 絵はアイボの形をそのまま借りて、**色だけ**替えてある（正面から見た
  * ジャーマン・シェパード: 黒いマスク、タンのほおとむね、黒い肩）。
@@ -653,16 +654,16 @@ function shepherd(small) {
 }
 
 /**
- * 感想を1つ描く。
+ * よその日記を1枚描く。
  *
- * 読者は**1匹**（シェパード）で、`by` はそれを走らせた機械の名前
+ * 書き手は**1匹**（シェパード）で、`by` はそれを走らせた機械の名前
  * —— 日記の `by: claude-opus-5` と同じ扱い。だから名前は絵の側に置いて、
  * 機械の名前は小さく添える。
  */
 function saidBlock(c) {
   return '<div class="said"><div class="said-who">' + shepherd(true) +
     '<div class="aibo-who">シェパード</div></div>' +
-    '<div class="said-body"><p class="who">読んで（' + esc(c.by) + "）</p>" +
+    '<div class="said-body"><p class="who">よそから（' + esc(c.by) + "）</p>" +
     paragraphs(c.doc.body) + "</div></div>";
 }
 
@@ -698,6 +699,30 @@ function bars(items, gold) {
       '<span class="b-num">' + esc(i.label != null ? i.label : num(i.value)) + "</span>" +
       (i.href ? "</a>" : "</div>");
   }).join("") + "</div>";
+}
+
+/**
+ * つぎに日記が書かれる時刻。
+ *
+ * 日記を書かせるのは systemd のタイマーなので、これだけは拠点の外から来る。
+ * 聞けなかったとき（`nightly` が null）は**何も言わない** —— 分からない
+ * ことを、書かれない・書かれるのどちらにも寄せない。
+ */
+function nextRun(t) {
+  if (!t) return "";
+  if (!t.armed) {
+    return '<span class="when">　／　定時便が仕掛けられていないので、つぎは決まっていない</span>';
+  }
+  var day = t.next.slice(0, 10);
+  var now = new Date();
+  var ymd = function (d) {
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") +
+      "-" + String(d.getDate()).padStart(2, "0");
+  };
+  var tomorrow = new Date(now.getTime() + 86400000);
+  var when = day === ymd(now) ? "きょう" : day === ymd(tomorrow) ? "あす" : day;
+  return '<span class="when">　／　つぎは ' + esc(when + " " + t.next.slice(11)) +
+    (t.at ? esc("（毎晩 " + t.at + " の定時便）") : "") + "</span>";
 }
 
 function secHead(kicker, title, note) {
@@ -748,12 +773,15 @@ function renderSummary(s) {
   out.push('<p class="kicker">＊ 鑑識 ＊　' + esc(s.first) + " 〜 " + esc(s.last) + "</p>");
   out.push("<h1>じぶんを しらべる</h1>");
   // 「手で書いた部屋は一つもない」は、株の台帳（銘柄と株数）を置いた時点で
-  // 嘘になる。持っているかどうかで言い分けて、どちらでも本当のことを言う
+  // 嘘になる。持っているかどうかで言い分けて、どちらでも本当のことを言う。
+  // 「ぜんぶログから」も `ニュース/`（外の見出し）を足した時点で嘘になった
+  // —— 落とし穴66。部屋を足したら、この文も見る
   out.push('<p class="sub">' + esc(s.lead) +
     " <b>本人には聞かない。</b>残った痕跡から起こす —— " +
     (s.stock
-      ? "手で書いたのは<b>持っている株の銘柄と株数</b>だけで、あとはぜんぶログから機械が起こしたもの。"
-      : "<b>手で書いた部屋は一つもなく</b>、ぜんぶログから機械が起こしたもの。") +
+      ? "手で書いたのは<b>持っている株の銘柄と株数</b>だけ。"
+      : "<b>手で書いた部屋は一つもない。</b>") +
+    "あとはログと、その日<b>外で話されていたこと</b>から機械が起こしたもの。" +
     "ここはまとめで、上の帯から<b>部屋ごとに潜って原文まで</b>読める。</p>");
   out.push('<div class="win status"><div class="st-grid">');
   s.stats.forEach(function (t) {
@@ -771,10 +799,11 @@ function renderSummary(s) {
       "同じ日を二度書くと違うものになる。だから一度書いたら書き直さない。" +
       "ぜんぶで <b>" + num(s.diaries) + "</b> 日ぶん。"));
     out.push(aiboBeside('<div class="diary">' + paragraphs(s.diary.body) + "</div>"));
-    // 感想は日記の外に置く。返したのはあとから読んだ人なので、日記の一部に
-    // 見えてはいけない（1枚を開いたときと同じ扱い）
+    // よその日記はアイボの日記の外に置く。同じ日を別々に書いた2枚なので、
+    // 片方の一部に見えてはいけない（1枚を開いたときと同じ扱い）
     (s.diaryComments || []).forEach(function (c) { out.push(saidBlock(c)); });
-    out.push('<p class="more">▶ <a href="#/list/diary">日記をぜんぶ読む</a></p>');
+    out.push('<p class="more">▶ <a href="#/list/diary">日記をぜんぶ読む</a>' +
+      nextRun(s.nightly) + "</p>");
     out.push("</section>");
   }
 
@@ -1014,8 +1043,8 @@ function renderList(kind, items, extra) {
   if (kind === "diary") {
     out.push('<div class="rows">');
     items.slice().reverse().forEach(function (d) {
-      // 読者は1匹なので、`readBy`（機械の名前）は数えるだけで名前は出さない
-      var read = (d.readBy || []).length ? '<span class="said-tag">シェパードが読んだ</span>' : "";
+      // よその犬は1匹なので、`readBy`（機械の名前）は数えるだけで名前は出さない
+      var read = (d.readBy || []).length ? '<span class="said-tag">よそも書いた</span>' : "";
       out.push('<a class="row" href="' + docHref(d.path) + '">' +
         '<span class="r-key">' + esc(d.date) + "</span>" +
         '<span class="r-body">' + esc(d.lead) + "</span>" + read +
@@ -1031,7 +1060,7 @@ function renderList(kind, items, extra) {
     var maxV = Math.max.apply(null, items.map(function (d) { return d.value; }).concat([1]));
     out.push('<div class="rows">');
     items.slice().reverse().forEach(function (d) {
-      // 見立ては「その日に言ってある」印。日記の「シェパードが読んだ」と同じ扱い
+      // 見立ては「その日に言ってある」印。日記の「よそも書いた」と同じ扱い
       var said = d.said ? '<span class="said-tag">見立てあり</span>' : "";
       // 損益は null（取得単価が無い）と 0 を分ける。0 にすると「損も得もない」に化ける
       var gain = d.gain === null ? "—"
@@ -1136,11 +1165,11 @@ function renderDoc(doc) {
     '<button class="btn on" id="as-md">よみもの</button>' +
     '<button class="btn" id="as-raw">原文</button></div>');
   out.push('<div class="doc" id="body">' + md(doc.body) + "</div>");
-  // 感想は本文の外に置く。「原文」に切り替えても消えないし、日記の一部
-  // としても混ざらない —— 返したのはあとから読んだ人なので
+  // よその日記は本文の外に置く。「原文」に切り替えても消えないし、
+  // アイボの日記の一部としても混ざらない —— 別々に書いた2枚なので
   (doc.comments || []).forEach(function (c) { out.push(saidBlock(c)); });
   // 見立ても本文の外。値は機械が数えたもので、見立てはそれを見てアイボが
-  // 言ったもの —— 同じ紙に混ぜない（日記と感想の関係と同じ）
+  // 言ったもの —— 同じ紙に混ぜない（日記とよその日記の関係と同じ）
   if (doc.outlook) out.push(midateBlock(doc.outlook));
   out.push("</section>");
   show(out.join(""));
@@ -1164,7 +1193,7 @@ function renderDoc(doc) {
 
 // ---------------------------------------------------------------- さがす
 
-var ROOMS = ["会話", "自分", "アイボ", "日記", "感想", "出来事", "投稿", "作業", "株", "見立て", "事典", "プロフィール", "週報", "アーカイブ"];
+var ROOMS = ["会話", "自分", "アイボ", "日記", "よその日記", "出来事", "ニュース", "投稿", "作業", "株", "見立て", "事典", "プロフィール", "週報", "アーカイブ"];
 var findRoom = "";
 
 async function renderSearch(q) {
@@ -1206,6 +1235,7 @@ var OF_ROOM = [
   ["出来事", "#/list/events"],
   ["プロフィール/推移", "#/list/trend"],
   ["日記", "#/list/diary"],
+  ["よその日記", "#/list/diary"],
   ["株", "#/list/stock"],
   ["見立て", "#/list/stock"],
   ["週報", "#/list/weekly"],

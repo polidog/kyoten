@@ -17,7 +17,7 @@
  *     web.ts --no-open       # 開かない
  */
 
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -116,22 +116,80 @@ function find(u: URL): unknown {
   }
 }
 
+/**
+ * 定時便がつぎにいつ起きるか。
+ *
+ * これは拠点に無い —— 日記を書かせるのは systemd のタイマーなので、
+ * 予定はそっちにしか無い。だから `read.ts`（拠点を読む層）ではなく
+ * ここで聞く。
+ *
+ * 聞けなかったものは埋めない（落とし穴14 と同じ形で、「分からなかった」を
+ * 「無い」にしない）。状態は3つある —— systemd に聞けない（null。画面は
+ * 何も言わない）、タイマーが入っていない（`armed: false`）、動いている。
+ */
+export interface Nightly {
+  /** タイマーが入っていて、次が決まっているか */
+  readonly armed: boolean;
+  /** `OnCalendar` の時刻（"03:00"）。毎晩これに起きる予定 */
+  readonly at: string;
+  /** 次に起きる時刻（"2026-09-06 03:01"）。`RandomizedDelaySec` のずれ込み */
+  readonly next: string;
+}
+
+function nightly(): Nightly | null {
+  let out: string;
+  try {
+    const got = spawnSync(
+      "systemctl",
+      [
+        "--user",
+        "show",
+        "kyoten.timer",
+        "--property=LoadState",
+        "--property=ActiveState",
+        "--property=TimersCalendar",
+        "--property=NextElapseUSecRealtime",
+      ],
+      { encoding: "utf8", timeout: 3000 },
+    );
+    if (got.error || got.status !== 0) return null;
+    out = got.stdout;
+  } catch {
+    return null;
+  }
+
+  const prop = (key: string): string =>
+    new RegExp(`^${key}=([^\n]*)$`, "m").exec(out)?.[1]?.trim() ?? "";
+
+  if (prop("LoadState") !== "loaded") return { armed: false, at: "", next: "" };
+  // `TimersCalendar` は `{ OnCalendar=*-*-* 03:00:00 ; next_elapse=… }` の形
+  const at = /OnCalendar=\S+ (\d{2}:\d{2})/.exec(prop("TimersCalendar"))?.[1] ?? "";
+  // `NextElapseUSecRealtime` は `Sun 2026-09-06 03:01:04 JST`。止めてあれば n/a
+  const next = /(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})/.exec(prop("NextElapseUSecRealtime"));
+  if (prop("ActiveState") !== "active" || !next) return { armed: false, at, next: "" };
+  return { armed: true, at, next: `${next[1]} ${next[2]}` };
+}
+
 function api(u: URL): unknown {
   switch (u.pathname) {
-    case "/api/summary":
-      return vault.summary();
+    case "/api/summary": {
+      const s = vault.summary();
+      // 日記のとなりに「つぎはいつ書かれるか」を添える。拠点の外の話なので
+      // まとめに混ぜず、別の名前で持たせる
+      return s ? { ...s, nightly: nightly() } : s;
+    }
     case "/api/list":
       return list(u.searchParams.get("room") ?? "");
     case "/api/doc": {
       const path = u.searchParams.get("path") ?? "";
       const doc = vault.docAt(path);
       if (!doc) return undefined;
-      // 日記を開いたときは、その日の感想も添える。読む側に2回叩かせない
+      // 日記を開いたときは、同じ日のよその日記も添える。2回叩かせない
       // ——「日記のとなりにアイボが座る」のと同じで、返事は同じ画面に出す
       const day = /^日記\/\d{4}-\d{2}\/(\d{4}-\d{2}-\d{2})\.md$/.exec(path);
-      const said = day ? vault.commentsOn(day[1]) : [];
+      const said = day ? vault.guestOn(day[1]) : [];
       if (said.length) return { ...doc, comments: said };
-      // 株を開いたときは、その日の見立ても添える。日記と感想と同じ考えかたで、
+      // 株を開いたときは、その日の見立ても添える。日記とよそと同じ考えかたで、
       // 値の一部ではなく「それを見てアイボが言ったもの」なので別に持たせる
       const priced = /^株\/\d{4}-\d{2}\/(\d{4}-\d{2}-\d{2})\.md$/.exec(path);
       const seen = priced ? vault.outlookOn(priced[1]) : null;

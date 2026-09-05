@@ -9,7 +9,8 @@
  *     自分/        polidog の発言だけ
  *     アイボ/      AI が何をしたか
  *     日記/        アイボが書いた1日のまとめ
- *     感想/        その日記を、あとから読んだ人が返したもの
+ *     よその日記/  同じ日を、外から書いたもの
+ *     ニュース/    その日、外で話されていたこと
  *     投稿/ 作業/ 事典/ プロフィール/ 週報/
  *     アーカイブ/  以前の Obsidian 保管庫
  *
@@ -53,8 +54,9 @@ const RE_MINE_HEAD = /^\d\d:\d\d:\d\d +(.+?)（/;
 const AIBO_SECTIONS = new Set(["どれだけ動いたか", "つかった道具", "やったこと",
   "言われたこと"]);
 
-export const ROOMS = ["会話", "自分", "アイボ", "日記", "感想", "出来事", "投稿",
-  "作業", "株", "見立て", "事典", "プロフィール", "週報", "アーカイブ"] as const;
+export const ROOMS = ["会話", "自分", "アイボ", "日記", "よその日記", "出来事",
+  "ニュース", "おすすめ", "読んだ", "投稿", "作業", "株", "見立て", "事典",
+  "プロフィール", "週報", "アーカイブ"] as const;
 
 function rooms(): [string, string][] {
   return [
@@ -62,8 +64,11 @@ function rooms(): [string, string][] {
     [join(KYOTEN, "自分"), "自分"],
     [join(KYOTEN, "アイボ"), "アイボ"],
     [join(KYOTEN, "日記"), "日記"],
-    [join(KYOTEN, "感想"), "感想"],
+    [join(KYOTEN, "よその日記"), "よその日記"],
     [join(KYOTEN, "出来事"), "出来事"],
+    [join(KYOTEN, "ニュース"), "ニュース"],
+    [join(KYOTEN, "おすすめ"), "おすすめ"],
+    [join(KYOTEN, "読んだ"), "読んだ"],
     [join(KYOTEN, "投稿"), "投稿"],
     [join(KYOTEN, "作業"), "作業"],
     [join(KYOTEN, "株"), "株"],
