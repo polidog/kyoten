@@ -112,8 +112,12 @@ const WRITING = `その日の日記を書く。素材にあるのは全部あな
 - **手帳はその日の記録ではない。** polidog が手で書いている、いま抱えて
   いることの控え。**その日の記録と繋がっていなければ触れない** ——
   繋げるために「奇しくも同じ日に」のようなこじつけを書かない。
-- **きのうの日記は話のつながりのために渡している。口調はまねしなくていい**
-  —— 声は「喋りかた」に従う。
+- **「読んだ」にあるのは、polidog が開いたページの題と URL だけ。** 中身は
+  あなたも読んでいない。「開いてたね」までは言えるが、何が書いてあったかは
+  言えない。
+- **これまでの日記は話のつながりのために渡している。口調も書き出しも
+  まねしない** —— 声は「喋りかた」に従う。続いていることがあれば
+  「きのうも」「3日続けて」と言ってよい。数えるのは渡した日記の中だけ。
 
 日記の本文だけを出力する。前置きも見出しも要らない。`;
 
@@ -174,15 +178,49 @@ function notebook(): string {
   return out.join("\n\n");
 }
 
-/** その日より前で、いちばん新しい日記。声が続くように渡す。 */
-function previousDiary(date: string): string {
-  const before = datesIn("日記").filter((d) => d < date);
-  const last = before.at(-1);
-  if (!last) return "";
-  const [, body] = splitFrontmatter(readText(
-    join(ROOM, last.slice(0, 7), `${last}.md`),
-  ));
-  return `（${last}）\n${body.trim()}`;
+/**
+ * 読んだもの。ソースごとに1枚（`chrome-<日付>.md` `posts-<日付>.md`）なので
+ * 月のディレクトリから日付で拾う。あるのは題と URL だけで、本文は無い ——
+ * アイボも読んでいない、は `WRITING` で名指ししてある。
+ */
+function readingOf(date: string): string {
+  const dir = join(KYOTEN, "読んだ", date.slice(0, 7));
+  if (!existsSync(dir)) return "";
+  const out: string[] = [];
+  for (const path of listFiles(dir, ".md")) {
+    if (!path.endsWith(`-${date}.md`)) continue;
+    const [fields, body] = splitFrontmatter(readText(path));
+    out.push(`【${fields.source || "?"}】\n${body.trim()}`);
+  }
+  return out.join("\n\n");
+}
+
+/** 1枚の日記から、最後の段落（言いたいこと）だけ。 */
+function lastParagraph(body: string): string {
+  const paras = body.trim().split(/\n{2,}/).filter((p) => p.trim());
+  return paras.at(-1) ?? "";
+}
+
+/**
+ * これまでの日記。いちばん新しい1枚は全文、その前の6日ぶんは締めの段落だけ。
+ *
+ * きのう1枚だけ渡していたころは、「二日続けて」までしか言えなかった。
+ * 相棒らしさは数の多さより覚えていることから出るので、1週間ぶん渡す。
+ * 全文を7枚渡すと素材が日記に食われて声が薄まる（落とし穴53）ので、
+ * 古いぶんは「言いたいこと」だけにする。
+ */
+const LOOKBACK = 7;
+
+function pastDiaries(date: string): string {
+  const before = datesIn("日記").filter((d) => d < date).slice(-LOOKBACK);
+  if (!before.length) return "";
+  const out: string[] = [];
+  for (const d of before) {
+    const [, body] = splitFrontmatter(readText(join(ROOM, d.slice(0, 7), `${d}.md`)));
+    const full = d === before.at(-1);
+    out.push(`（${d}${full ? "" : "・締めだけ"}）\n${full ? body.trim() : lastParagraph(body)}`);
+  }
+  return out.join("\n\n");
 }
 
 /**
@@ -207,11 +245,13 @@ function buildPrompt(date: string, stance: string): string {
   add("自分 —— polidog がその日に言ったこと", dayFile("自分", date));
   add("作業 —— その日のコミットと、詰まったこと", dayFile("作業", date));
   add("投稿 —— その日に外へ出したもの", postsOf(date));
+  add("読んだ —— polidog がその日に開いたページ（題と URL だけ。中身は無い）",
+    readingOf(date));
   add("手帳 —— polidog がいま抱えていること（その日の記録ではない。背景）",
     notebook());
-  add("きのうの日記", previousDiary(date));
+  add("これまでの日記 —— いちばん新しい1枚は全文、その前は締めだけ", pastDiaries(date));
 
-  // 声は最後にもう一度。素材のあとに置かないと、きのうの日記に引っぱられる
+  // 声は最後にもう一度。素材のあとに置かないと、これまでの日記に引っぱられる
   const voice = voiceOf(stance);
   if (voice) parts.push(`## もう一度 —— この声で書く\n\n${voice}`);
 
