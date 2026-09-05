@@ -538,76 +538,76 @@ var AIBO_B = [
 var AIBO_EYES = [[6, 8], [17, 19]];
 
 /**
- * シェパード —— 同じ日を外から書く、よその家の犬。
+ * レトリバー —— 同じ日を外から書く、よその家の犬（ゴールデンレトリバー）。
  *
- * 絵はアイボの形をそのまま借りて、**色だけ**替えてある（正面から見た
- * ジャーマン・シェパード: 黒いマスク、タンのほおとむね、黒い肩）。
- * 形が同じなのは手抜きではなく、同じ大きさで並ぶ2匹だから ——
- * 見分けるのは色で足りる。
+ * 絵はアイボと同じ 26×24 で、顔の位置も同じ（同じ大きさで並ぶ2匹だから）。
+ * 違うのは色と耳 —— アイボの立ち耳を、頭の横に垂れる耳に替えてある。
+ * こま2枚で、しっぽが振れて、耳がわずかに揺れる。
+ *   o ふち　g 毛　d みみ　c むね・はなさき　n はな　e め　h めのひかり　t くびわ
  *
- * 登場人物が増えるのは、機構が増えたときだけ。シェパードは
- * `bin/comment.ts` が本当に別のプロセスで走らせている読者で、
+ * 登場人物が増えるのは、機構が増えたときだけ。レトリバーは
+ * `bin/guest.ts` が本当に別のプロセスで走らせている書き手で、
  * 名前だけの役者ではない（役者表を消したときの基準）。
  */
-var SHEP_PAINT = {
-  o: "#171B2E", k: "#2A231C", s: "#B87F3C", n: "#141110",
-  e: "#D79A33", h: "#FFF6E2", p: "#3D2C1E", t: "#4A3728",
+var GOLDEN_PAINT = {
+  o: "#171B2E", g: "#E2B15A", d: "#C58A2E", c: "#F6E7BC",
+  n: "#2B1E14", e: "#5A3A1E", h: "#FFF6E2", t: "#C8433A",
 };
 
-var SHEPHERD_A = [
-  "....okko..........okko....",
-  "...okppko........okppko...",
-  "...okppkooooooooookppko...",
-  "....ookkkkkkkkkkkkkkoo....",
-  "...okkkkkkkkkkkkkkkkkko...",
-  "...okkkkkkkkkkkkkkkkkko...",
-  "...ossheesskkkkssheesso...",
-  "...osseeesskkkksseeesso...",
-  "...osseeesskkkksseeesso...",
-  "...osskkkkkkkkkkkkkksso...",
-  "...ossssskknnnnkkssssso...",
-  "...ossssskknnnnkkssssso...",
-  "...ossssskkkookkkssssso...",
-  "....osssskkkkkkkksssso....",
-  ".....oossssssssssssoo.....",
+var GOLDEN_A = [
+  "......oooooooooooooo......",
+  ".....oggggggggggggggo.....",
+  "....ogggggggggggggggggo...",
+  ".oooggggggggggggggggggooo.",
+  ".oddggggggggggggggggggddo.",
+  ".oddggggggggggggggggggddo.",
+  ".oddggheeggggggggheeggddo.",
+  ".oddggeeeggggggggeeeggddo.",
+  ".oddggeeeggggggggeeeggddo.",
+  ".oddggggggggggggggggggddo.",
+  ".oddgggggccnnnnccgggggddo.",
+  ".oddgggggccnnnnccgggggddo.",
+  ".oddgggggcccoocccgggggddo.",
+  ".oddoggggccccccccggggoddo.",
+  ".ooo.ooccccccccccccoo.ooo.",
   "......otttttttttttto......",
-  "......okkksssssskkko.oo...",
-  "......okkksssssskkkoosso..",
-  "......okkksssssskkkoosso..",
-  "......okkksssssskkkosso...",
-  "......okkksssssssskkko....",
-  "......okkksssssskkkoo.....",
-  "......osssossssossso......",
+  "......oggggccccggggo.oo...",
+  "......oggggccccggggooggo..",
+  "......oggggccccggggooggo..",
+  "......oggggccccggggoggo...",
+  "......oggggccccgggggggo...",
+  "......oggggccccggggoo.....",
+  "......ogggoccccogggo......",
   ".......ooo.oooo.ooo.......",
 ];
-var SHEPHERD_B = [
-  ".....oo............oo.....",
-  "....okko..........okko....",
-  "...okppkooooooooookppko...",
-  "....ookkkkkkkkkkkkkkoo....",
-  "...okkkkkkkkkkkkkkkkkko...",
-  "...okkkkkkkkkkkkkkkkkko...",
-  "...ossheesskkkkssheesso...",
-  "...osseeesskkkksseeesso...",
-  "...osseeesskkkksseeesso...",
-  "...osskkkkkkkkkkkkkksso...",
-  "...ossssskknnnnkkssssso...",
-  "...ossssskknnnnkkssssso...",
-  "...ossssskkkookkkssssso...",
-  "....osssskkkkkkkksssso....",
-  ".....oossssssssssssoo.....",
-  "......otttttttttttto......",
-  "......okkksssssskkko......",
-  "......okkksssssskkko......",
-  "......okkksssssskkko.oo...",
-  "......okkksssssskkkoosso..",
-  "......okkksssssskkkoosso..",
-  "......okkksssssskkkosso...",
-  "......osssossssossssso....",
+var GOLDEN_B = [
+  "......oooooooooooooo......",
+  ".....oggggggggggggggo.....",
+  "....ogggggggggggggggggo...",
+  ".oooggggggggggggggggggooo.",
+  ".oddggggggggggggggggggddo.",
+  ".oddggggggggggggggggggddo.",
+  ".oddggheeggggggggheeggddo.",
+  ".oddggeeeggggggggeeeggddo.",
+  ".oddggeeeggggggggeeeggddo.",
+  ".oddggggggggggggggggggddo.",
+  ".oddgggggccnnnnccgggggddo.",
+  ".oddgggggccnnnnccgggggddo.",
+  ".oddgggggcccoocccgggggddo.",
+  ".oddoggggccccccccggggoddo.",
+  ".odd.ooccccccccccccoo.ddo.",
+  ".ooo..otttttttttttto..ooo.",
+  "......oggggccccggggo......",
+  "......oggggccccggggo......",
+  "......oggggccccggggo.oo...",
+  "......oggggccccggggooggo..",
+  "......oggggccccggggooggo..",
+  "......oggggccccggggoggo...",
+  "......ogggoccccogggggo....",
   ".......ooo.oooo.ooooo.....",
 ];
 
-var SHEP_EYES = [[6, 8], [17, 19]];
+var GOLDEN_EYES = [[6, 8], [17, 19]];
 
 /** 同じ色が横に続くところは1本の帯にする（1こま 410 点 → 127 本） */
 function dots(rows, paint) {
@@ -642,29 +642,29 @@ function aibo(small) {
     '<g class="blink">' + shut + "</g></svg>";
 }
 
-function shepherd(small) {
-  var shut = SHEP_EYES.map(function (e) {
+function golden(small) {
+  var shut = GOLDEN_EYES.map(function (e) {
     var w = e[1] - e[0] + 1;
-    return '<rect x="' + e[0] + '" y="6" width="' + w + '" height="3" fill="' + SHEP_PAINT.k + '"/>' +
-      '<rect x="' + e[0] + '" y="7" width="' + w + '" height="1" fill="' + SHEP_PAINT.o + '"/>';
+    return '<rect x="' + e[0] + '" y="6" width="' + w + '" height="3" fill="' + GOLDEN_PAINT.g + '"/>' +
+      '<rect x="' + e[0] + '" y="7" width="' + w + '" height="1" fill="' + GOLDEN_PAINT.o + '"/>';
   }).join("");
   return '<svg class="aibo' + (small ? " small" : "") + '" viewBox="0 0 26 24" role="img" ' +
-    'shape-rendering="crispEdges"><title>シェパード</title>' +
-    '<g class="f1">' + dots(SHEPHERD_A, SHEP_PAINT) + "</g>" +
-    '<g class="f2">' + dots(SHEPHERD_B, SHEP_PAINT) + "</g>" +
+    'shape-rendering="crispEdges"><title>レトリバー</title>' +
+    '<g class="f1">' + dots(GOLDEN_A, GOLDEN_PAINT) + "</g>" +
+    '<g class="f2">' + dots(GOLDEN_B, GOLDEN_PAINT) + "</g>" +
     '<g class="blink">' + shut + "</g></svg>";
 }
 
 /**
  * よその日記を1枚描く。
  *
- * 書き手は**1匹**（シェパード）で、`by` はそれを走らせた機械の名前
+ * 書き手は**1匹**（レトリバー）で、`by` はそれを走らせた機械の名前
  * —— 日記の `by: claude-opus-5` と同じ扱い。だから名前は絵の側に置いて、
  * 機械の名前は小さく添える。
  */
 function saidBlock(c) {
-  return '<div class="said"><div class="said-who">' + shepherd(true) +
-    '<div class="aibo-who">シェパード</div></div>' +
+  return '<div class="said"><div class="said-who">' + golden(true) +
+    '<div class="aibo-who">レトリバー</div></div>' +
     '<div class="said-body"><p class="who">よそから（' + esc(c.by) + "）</p>" +
     paragraphs(c.doc.body) + "</div></div>";
 }

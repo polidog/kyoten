@@ -256,7 +256,7 @@ function render(date: string, writer: Writer, body: string): string {
     date,
     by: writer.key,
   });
-  // 書いたのはシェパード（1匹）。`writer.key` は**走らせた機械**の名前で、
+  // 書いたのはレトリバー（1匹）。`writer.key` は**走らせた機械**の名前で、
   // 日記の `by: claude-opus-5` と同じ扱い。機械が増えても犬は増えない
   // （CLAUDE.md「犬は増やしてよい。ただし機構1つにつき1匹」）。
   return `${head}\n\n# ${date} の日記（よそから・${writer.key}）\n\n${body}\n`;
