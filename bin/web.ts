@@ -138,6 +138,8 @@ export interface Nightly {
   readonly at: string;
   /** 次に起きる時刻（"2026-09-06 03:01"）。`RandomizedDelaySec` のずれ込み */
   readonly next: string;
+  /** 最後に起きた時刻（"2026-09-05 03:07"）。一度も起きていなければ "" */
+  readonly last: string;
 }
 
 function nightly(): Nightly | null {
@@ -153,6 +155,7 @@ function nightly(): Nightly | null {
         "--property=ActiveState",
         "--property=TimersCalendar",
         "--property=NextElapseUSecRealtime",
+        "--property=LastTriggerUSec",
       ],
       { encoding: "utf8", timeout: 3000 },
     );
@@ -165,13 +168,20 @@ function nightly(): Nightly | null {
   const prop = (key: string): string =>
     new RegExp(`^${key}=([^\n]*)$`, "m").exec(out)?.[1]?.trim() ?? "";
 
-  if (prop("LoadState") !== "loaded") return { armed: false, at: "", next: "" };
+  if (prop("LoadState") !== "loaded") return { armed: false, at: "", next: "", last: "" };
   // `TimersCalendar` は `{ OnCalendar=*-*-* 03:00:00 ; next_elapse=… }` の形
   const at = /OnCalendar=\S+ (\d{2}:\d{2})/.exec(prop("TimersCalendar"))?.[1] ?? "";
   // `NextElapseUSecRealtime` は `Sun 2026-09-06 03:01:04 JST`。止めてあれば n/a
-  const next = /(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})/.exec(prop("NextElapseUSecRealtime"));
-  if (prop("ActiveState") !== "active" || !next) return { armed: false, at, next: "" };
-  return { armed: true, at, next: `${next[1]} ${next[2]}` };
+  const stamp = (key: string): string => {
+    const m = /(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})/.exec(prop(key));
+    return m ? `${m[1]} ${m[2]}` : "";
+  };
+  // `LastTriggerUSec` は起きた時刻であって、無事に終わった時刻ではない
+  // （結果は service 側にあり、ここでは聞かない）。一度も起きていなければ n/a
+  const last = stamp("LastTriggerUSec");
+  const next = stamp("NextElapseUSecRealtime");
+  if (prop("ActiveState") !== "active" || !next) return { armed: false, at, next: "", last };
+  return { armed: true, at, next, last };
 }
 
 function api(u: URL): unknown {

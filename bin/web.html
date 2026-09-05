@@ -62,6 +62,7 @@ b{font-weight:500}
 .kicker{font-family:"DotGothic16",monospace;font-size:12px;letter-spacing:.14em;color:var(--blue);margin:0 0 12px}
 .head h1{font-size:clamp(26px,5vw,44px);line-height:1.35;letter-spacing:.02em}
 .head .sub{color:var(--ink-soft);margin:16px 0 0;max-width:62ch}
+.head .upd{font-family:"DotGothic16",monospace;font-size:12.5px;color:var(--muted);margin:14px 0 0}
 
 .status{margin-top:30px}
 .st-grid{
@@ -717,16 +718,43 @@ function nextRun(t) {
   if (!t.armed) {
     return '<span class="when">　／　定時便が仕掛けられていないので、つぎは決まっていない</span>';
   }
-  var day = t.next.slice(0, 10);
-  var now = new Date();
+  return '<span class="when">　／　つぎは ' + esc(shortWhen(t.next)) + "</span>";
+}
+
+/**
+ * まとめの見出しに置く、更新のきまり。
+ *
+ * 「毎晩いつ更新されるか」「最後に流したのはいつか」「つぎはいつか」を1行で。
+ * 日記の横の `nextRun` と同じ `nightly` から出すので、2か所で違うことは
+ * 言わない。聞けなかったとき（null）は何も言わない。
+ *
+ * 「最後に流した」は起きた時刻で、無事に終わったかは言っていない ——
+ * 結果は拠点（各部屋の日付）のほうに出る。
+ */
+function updateLine(t) {
+  if (!t) return "";
+  if (!t.armed) {
+    return '<p class="upd">定時便が仕掛けられていないので、ひとりでは更新されない' +
+      (t.last ? esc("　／　最後に流したのは " + shortWhen(t.last)) : "") + "</p>";
+  }
+  return '<p class="upd">' + esc("毎晩 " + t.at + " に更新") +
+    (t.last ? esc("　／　最後に流したのは " + shortWhen(t.last)) : "") +
+    esc("　／　つぎは " + shortWhen(t.next)) + "</p>";
+}
+
+/** "2026-09-05 03:07" → "きょう 03:07" / "あす 03:07" / "きのう 03:07" / "09-05 03:07" */
+function shortWhen(stamp) {
+  var day = stamp.slice(0, 10), time = stamp.slice(11);
   var ymd = function (d) {
     return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") +
       "-" + String(d.getDate()).padStart(2, "0");
   };
-  var tomorrow = new Date(now.getTime() + 86400000);
-  var when = day === ymd(now) ? "きょう" : day === ymd(tomorrow) ? "あす" : day;
-  return '<span class="when">　／　つぎは ' + esc(when + " " + t.next.slice(11)) +
-    (t.at ? esc("（毎晩 " + t.at + " の定時便）") : "") + "</span>";
+  var now = new Date();
+  var name = day === ymd(now) ? "きょう"
+    : day === ymd(new Date(now.getTime() + 86400000)) ? "あす"
+    : day === ymd(new Date(now.getTime() - 86400000)) ? "きのう"
+    : day.slice(5);
+  return name + " " + time;
 }
 
 function secHead(kicker, title, note) {
@@ -787,6 +815,7 @@ function renderSummary(s) {
       : "<b>手で書いた部屋は一つもない。</b>") +
     "あとはログと、その日<b>外で話されていたこと</b>から機械が起こしたもの。" +
     "ここはまとめで、上の帯から<b>部屋ごとに潜って原文まで</b>読める。</p>");
+  out.push(updateLine(s.nightly));
   out.push('<div class="win status"><div class="st-grid">');
   s.stats.forEach(function (t) {
     out.push("<div><span>" + esc(t.label) + "</span><b>" + esc(t.value) + "</b></div>");
