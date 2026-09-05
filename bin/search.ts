@@ -12,6 +12,7 @@
  *     よその日記/  同じ日を、外から書いたもの
  *     ニュース/    その日、外で話されていたこと
  *     投稿/ 作業/ 事典/ プロフィール/ 週報/
+ *     手帳/        polidog が手で書く紙（原則4 の例外）
  *     アーカイブ/  以前の Obsidian 保管庫
  *
  * SQLite FTS5 の trigram トークナイザを使う。日本語を分かち書きせずに
@@ -56,7 +57,7 @@ const AIBO_SECTIONS = new Set(["どれだけ動いたか", "つかった道具",
 
 export const ROOMS = ["会話", "自分", "アイボ", "日記", "よその日記", "出来事",
   "ニュース", "おすすめ", "読んだ", "投稿", "作業", "株", "見立て", "事典",
-  "プロフィール", "週報", "アーカイブ"] as const;
+  "プロフィール", "週報", "手帳", "アーカイブ"] as const;
 
 function rooms(): [string, string][] {
   return [
@@ -76,6 +77,7 @@ function rooms(): [string, string][] {
     [join(KYOTEN, "事典"), "事典"],
     [join(KYOTEN, "プロフィール"), "プロフィール"],
     [join(KYOTEN, "週報"), "週報"],
+    [join(KYOTEN, "手帳"), "手帳"],
     [join(KYOTEN, "アーカイブ"), "アーカイブ"],
   ];
 }

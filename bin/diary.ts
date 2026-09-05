@@ -59,7 +59,7 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 
 import {
   KYOTEN,
@@ -75,6 +75,9 @@ import { listFiles, parseArgs, parseSince } from "./cli.ts";
 import { appendLimit } from "./machine.ts";
 
 const ROOM = join(KYOTEN, "日記");
+
+/** 手帳。polidog が手で書く唯一の木（原則4 の例外）。 */
+const NOTEBOOK = join(KYOTEN, "手帳");
 
 /** 呼ぶもの。`KYOTEN_MODEL` で変えられる。 */
 const CLAUDE = process.env.KYOTEN_CLAUDE ?? "claude";
@@ -106,6 +109,9 @@ const WRITING = `その日の日記を書く。素材にあるのは全部あな
 - 最後に、言いたいことを一つだけ書く。褒めても、引っかかったところを
   指摘してもいい。素材から言えることに限る。
 - 素材を書き写さない。数を使うときは素材のものをそのまま使う。
+- **手帳はその日の記録ではない。** polidog が手で書いている、いま抱えて
+  いることの控え。**その日の記録と繋がっていなければ触れない** ——
+  繋げるために「奇しくも同じ日に」のようなこじつけを書かない。
 - **きのうの日記は話のつながりのために渡している。口調はまねしなくていい**
   —— 声は「喋りかた」に従う。
 
@@ -146,6 +152,28 @@ function datesIn(room: string): string[] {
     .sort();
 }
 
+/**
+ * 手帳 —— polidog が手で書いている紙（原則4 の例外）。
+ *
+ * ほかの素材と違って**日付ごとに畳んだ部屋ではない**ので、その日のぶんだけを
+ * 切り出せない。だから全部を**背景**として渡す。日付で絞る手は取らなかった:
+ * 更新日を frontmatter に手で書かせると、書き忘れた紙が黙って落ちる
+ * （落とし穴70 と同じ形）。mtime は機械ごとに動くので使えない。
+ *
+ * 渡すだけだと、繋がっていない日にこじつけを書く（`guest.ts` で踏んだ形）。
+ * 「その日の記録ではない」は `WRITING` で名指ししてある。
+ */
+function notebook(): string {
+  if (!existsSync(NOTEBOOK)) return "";
+  const out: string[] = [];
+  for (const path of listFiles(NOTEBOOK, ".md")) {
+    const [fields, body] = splitFrontmatter(readText(path));
+    const rel = relative(NOTEBOOK, path).replace(/\.md$/, "");
+    out.push(`【${fields.title || rel}】（手帳/${rel}）\n${body.trim()}`);
+  }
+  return out.join("\n\n");
+}
+
 /** その日より前で、いちばん新しい日記。声が続くように渡す。 */
 function previousDiary(date: string): string {
   const before = datesIn("日記").filter((d) => d < date);
@@ -179,6 +207,8 @@ function buildPrompt(date: string, stance: string): string {
   add("自分 —— polidog がその日に言ったこと", dayFile("自分", date));
   add("作業 —— その日のコミットと、詰まったこと", dayFile("作業", date));
   add("投稿 —— その日に外へ出したもの", postsOf(date));
+  add("手帳 —— polidog がいま抱えていること（その日の記録ではない。背景）",
+    notebook());
   add("きのうの日記", previousDiary(date));
 
   // 声は最後にもう一度。素材のあとに置かないと、きのうの日記に引っぱられる

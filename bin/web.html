@@ -292,6 +292,7 @@ mark{background:var(--gold-wash);color:var(--ink);border-bottom:1px solid var(--
   <a class="nav" href="#/list/skill">スキル</a>
   <a class="nav" href="#/list/events">年表</a>
   <a class="nav" href="#/list/entity">事典</a>
+  <a class="nav" href="#/tree/%E6%89%8B%E5%B8%B3">手帳</a>
   <a class="nav" href="#/tree/%E3%82%A2%E3%83%BC%E3%82%AB%E3%82%A4%E3%83%96">アーカイブ</a>
   <a class="nav" href="#/tree/">部屋</a>
   <form id="find"><input id="q" type="search" placeholder="さがす（/ で飛ぶ）" autocomplete="off"></form>
@@ -1236,7 +1237,7 @@ function renderDoc(doc) {
 
 // ---------------------------------------------------------------- さがす
 
-var ROOMS = ["会話", "自分", "アイボ", "日記", "よその日記", "出来事", "ニュース", "おすすめ", "読んだ", "投稿", "作業", "株", "見立て", "事典", "プロフィール", "週報", "アーカイブ"];
+var ROOMS = ["会話", "自分", "アイボ", "日記", "よその日記", "出来事", "ニュース", "おすすめ", "読んだ", "投稿", "作業", "株", "見立て", "事典", "プロフィール", "週報", "手帳", "アーカイブ"];
 var findRoom = "";
 
 async function renderSearch(q) {
@@ -1286,6 +1287,7 @@ var OF_ROOM = [
   ["読んだ", "#/list/reading"],
   ["週報", "#/list/weekly"],
   ["事典", "#/list/entity"],
+  ["手帳", treeHref("手帳")],
   ["アーカイブ", treeHref("アーカイブ")],
 ];
 
@@ -1303,6 +1305,9 @@ function navOf(hash) {
   }
   if (hash.indexOf("#/tree/") === 0) {
     var treePath = unurl(hash.slice(7));
+    if (treePath === "手帳" || treePath.indexOf("手帳/") === 0) {
+      return treeHref("手帳");
+    }
     if (treePath === "アーカイブ" || treePath.indexOf("アーカイブ/") === 0) {
       return treeHref("アーカイブ");
     }
