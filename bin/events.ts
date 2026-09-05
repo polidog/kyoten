@@ -69,6 +69,7 @@ import {
   ym,
 } from "./util.ts";
 import { listFiles, parseArgs } from "./cli.ts";
+import { appendLimit } from "./machine.ts";
 
 const ROOM = join(KYOTEN, "出来事");
 
@@ -528,7 +529,15 @@ function main(): number {
   // 書くのは先月まで。今月はまだ終わっていない。時計を見てよい理由は冒頭のとおり。
   const thisMonth = ym(jst(new Date().toISOString())!);
   const open = available.filter((m) => m >= thisMonth);
-  let targets = available.filter((m) => m < thisMonth && (!since || m >= since));
+  // 追記のみなので、全機械の素材が揃った月までしか書かない。ある月が
+  // 揃っているのは、遅れている機械が**その月より後に**集めているとき
+  // （`settled` が 2026-09-01 なら 2026-08 は揃っている）。
+  const { limit: settledLimit, held } = appendLimit(thisMonth + "-01");
+  const settledMonth = settledLimit.slice(0, 7);
+  // 「揃った月」は settled の**前の月まで** —— settled が 2026-08-20 なら
+  // 8月はまだ途中なので書かない。2026-09-01 なら 8月は揃っている。
+  let targets = available.filter((m) =>
+    m < thisMonth && m < settledMonth && (!since || m >= since));
 
   let already = 0;
   const todo: string[] = [];
@@ -576,7 +585,7 @@ function main(): number {
     console.log(
       `events: ${n(already + written)}か月 (new ${written} / ある ${already}` +
         (remaining ? ` / のこり ${remaining}` : "") +
-        (failed ? ` / 書けず ${failed}` : "") + ")",
+        (failed ? ` / 書けず ${failed}` : "") + ")" + (held ? ` ／ ${held}` : ""),
     );
   } else {
     if (args.flags["dry-run"]) console.log("（書かずに確認）");

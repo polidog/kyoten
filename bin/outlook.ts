@@ -43,8 +43,9 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { KYOTEN, clip, frontmatter, n, readText, splitFrontmatter } from "./util.ts";
+import { KYOTEN, clip, frontmatter, jst, n, readText, splitFrontmatter, ymd } from "./util.ts";
 import { listFiles, parseArgs, parseSince } from "./cli.ts";
+import { appendLimit } from "./machine.ts";
 
 const ROOM = join(KYOTEN, "見立て");
 
@@ -232,13 +233,23 @@ function main(): number {
     }
   }
 
-  // 時計は見ない。`株/` が確定した日しか持っていないので、それがそのまま境になる
-  const targets = datesIn("株").filter((d) => !since || d >= since);
+  // 時計は見ない。`株/` が確定した日しか持っていないので、それがそのまま境になる。
+  // 追記のみなので、全機械の素材が揃った日までしか書かない。値（`株/`）は
+  // どの機械でも同じだが、見立てはその日の日記を読むので、日記と同じ門を通す。
+  const { limit, held } = appendLimit(ymd(jst(new Date().toISOString())!));
+  const priced = datesIn("株");
+  const targets = priced.filter((d) => d < limit).filter((d) => !since || d >= since);
   if (targets.length === 0) {
     // 値がまだ無いだけ。失敗ではない（stock.ts と同じ分けかた）。
+    // **「値が無い」と「門で止まった」を混ぜない** —— 混ぜると、相手の
+    // 機械が遅れているだけの夜に「先に stock.ts を流せ」と嘘を言う
+    // （落とし穴14 と同じ形で、原因の違うものを1つの文言にしない）。
+    const why = priced.length && held
+      ? `outlook: 書ける日がまだ無い ／ ${held}`
+      : "outlook: 株/ に値がまだ無い（先に stock.ts）";
     // `--quiet` でも1行出す —— 黙ると定時便が「何も言わずに終わった」と言う
-    if (args.flags.quiet) console.log("outlook: 株/ に値がまだ無い（先に stock.ts）");
-    else console.log(`  見立て       : ${join(KYOTEN, "株")} に値がまだ無い`);
+    if (args.flags.quiet) console.log(why);
+    else console.log(`  見立て       : ${priced.length && held ? held : `${join(KYOTEN, "株")} に値がまだ無い`}`);
     return 0;
   }
 
@@ -277,7 +288,7 @@ function main(): number {
   if (args.flags.quiet) {
     console.log(
       `outlook: ${n(already + written)}日 (new ${written} / ある ${already}` +
-        (failed ? ` / 書けず ${failed}` : "") + ")",
+        (failed ? ` / 書けず ${failed}` : "") + ")" + (held ? ` ／ ${held}` : ""),
     );
   } else {
     if (args.flags["dry-run"]) console.log("（書かずに確認）");

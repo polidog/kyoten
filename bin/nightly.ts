@@ -28,6 +28,8 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { KYOTEN } from "./util.ts";
+import { CONFIG, KNOWN, MACHINE, fleetNote, runs } from "./machine.ts";
+import { たたむ } from "../config.ts";
 import { parseArgs } from "./cli.ts";
 
 const BIN = dirname(fileURLToPath(import.meta.url));
@@ -37,6 +39,12 @@ const BIN = dirname(fileURLToPath(import.meta.url));
  * その 5 倍を見ておく。ここで切れるのは「相手が応答を止めた」ときだけ。
  */
 const STEP_TIMEOUT = 600_000;
+
+/**
+ * 2段に割れている道具（`machine.ts` を見る）。集める側の機械では
+ * `--collect-only` を付けて、素材だけ置かせる。
+ */
+const COLLECTORS: readonly string[] = ["me", "aibo", "work", "reading"];
 
 /** 拠点の部屋。コミットのメッセージに数を出すのに使う。 */
 const ROOMS: readonly string[] = ["会話", "自分", "アイボ", "日記", "投稿", "作業",
@@ -189,6 +197,9 @@ function main(): number {
     // ニュースも外から取ってくるが1階。`よその日記/` の素材なので、
     // 畳む側（2階）より先に居ればいい（`株/` と同じ立ち位置）
     ["news", common],
+    // 読んだものも外（Chrome の履歴）を見るが1階。`投稿/` からも起こすので
+    // posts のあと。`おすすめ/` の根拠になる
+    ["reading", common],
     ["entities", common],
     ["profile", common],
     ["weekly", common],
@@ -206,20 +217,51 @@ function main(): number {
     // よその日記は `ニュース/` と1階の記録を読む。アイボの日記は渡さない
     // ので日記の前でもいいが、画面では2枚が並ぶので、同じ夜にそろえる
     ["guest", common],
+    // おすすめは `ニュース/` から選ぶ。根拠に `読んだ/` `事典/` `週報/` を
+    // 使うので、拠点がひととおり書き終わったいちばん最後。中で `claude` を呼ぶ
+    ["picks", common],
   ];
   // 索引は素材が新しければ検索時に自分で刻み直すが、そのぶん最初の
   // 1回を人が待つことになる。夜のうちに刻んでおく。--dry-run のときは
   // 素材が増えていないので触らない。
   if (!args.flags["dry-run"]) steps.push(["search", ["--rebuild", "--quiet"]]);
 
+  // ---- 機械ごとに、どこまで走らせるか（`config.ts`）
+  //
+  // **畳む道具を1つも持たない機械は「集める側」**。集める道具に
+  // `--collect-only` を付けて、素材だけ置いて終わる。畳みは母艦がやる。
+  // 導出にしてあるのは、同じことを2か所に書かないため（落とし穴21）。
+  const feeder = !たたむ.some((t) => runs(t));
+
+  console.log(
+    `機械: ${MACHINE}` +
+      (KNOWN ? "" : "（config.ts に無いので既定＝集めるだけ。`hostname` を見て足す）") +
+      ` ／ ${feeder ? "集める側" : "畳む側"}` +
+      (CONFIG.commit ? "・記録する" : "") +
+      ` ／ ${fleetNote()}`,
+  );
+
   const failed: string[] = [];
+  const skipped: string[] = [];
   for (const [name, argv] of steps) {
-    const [ok, report] = run(name, argv);
+    if (name !== "search" && !runs(name)) {
+      skipped.push(name);
+      continue;
+    }
+    // 集める側は畳まない。素材を置いたら、そこで終わる
+    const extra = feeder && COLLECTORS.includes(name) ? ["--collect-only"] : [];
+    const [ok, report] = run(name, [...argv, ...extra]);
     console.log(report);
     if (!ok) failed.push(name);
   }
+  if (skipped.length) console.log(`とばした: ${skipped.join("・")}（config.ts）`);
 
-  if (!args.flags["no-commit"]) {
+  // 拠点の git は**1台だけ**が打つ。Obsidian Sync はドットで始まるものを
+  // 運ばないので `.git` は機械ごとに別物になり、2台で打つと同じ内容に
+  // ついて2本の履歴ができる。打たない側は Obsidian のバージョン履歴に任せる。
+  if (!args.flags["no-commit"] && !CONFIG.commit) {
+    console.log("記録: この機械では打たない（config.ts の commit が false）");
+  } else if (!args.flags["no-commit"]) {
     const [ok, report] = commit(args.flags["dry-run"]);
     console.log(report);
     if (!ok) failed.push("記録");

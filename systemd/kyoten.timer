@@ -15,5 +15,10 @@ Persistent=true
 AccuracySec=5min
 RandomizedDelaySec=10min
 
+# 複数台で走らせるとき、集める側が母艦より先に起きているほうが素材の
+# 渡りがいい。ただし当てにはしない —— ノートが閉じていた夜もあるので、
+# 揃っていない日は母艦が**書かずに待つ**（`machine.ts` の `appendLimit`）。
+# 集める側に回す機械では、ここを 02:00 にしておくとよい。
+
 [Install]
 WantedBy=timers.target

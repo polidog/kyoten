@@ -27,6 +27,12 @@
  *     work.ts --dry-run
  *     work.ts --since 2026-08-01
  *     work.ts --quiet
+ *     work.ts --collect-only     # 素材に落とすだけ（母艦でない機械）
+ *     work.ts --fold-only        # 素材から畳むだけ
+ *
+ * 拠点を複数の PC で共有するため、2段になっている（`machine.ts` を見る）。
+ * `~/ghq` は機械ごとに違うので、**コミットは両方から出させて、畳む側で
+ * ハッシュで重複を落とす**（落とし穴17 と同じ形）。
  */
 
 import { execFileSync } from "node:child_process";
@@ -41,6 +47,7 @@ import {
   clip,
   frontmatter,
   hhmm,
+  isoJst,
   jst,
   n,
   readJsonl,
@@ -51,8 +58,9 @@ import {
   type WriteState,
 } from "./util.ts";
 import { listFiles, parseArgs, parseSince } from "./cli.ts";
+import { fleetNote, ghqRoot, markCollected, readSozai, writeSozai } from "./machine.ts";
 
-const GHQ = join(homedir(), "ghq");
+const GHQ = ghqRoot();
 const ROOM = join(KYOTEN, "作業");
 
 /**
@@ -471,19 +479,36 @@ function renderDay(
   return head + `\n\n# ${date} の作業\n\n` + body.join("\n\n") + "\n";
 }
 
-// ---------------------------------------------------------------- 入口
+// ---------------------------------------------------------------- 素材
 
-function main(): number {
-  const args = parseArgs(process.argv.slice(2), ["dry-run", "quiet"], ["since"]);
-  const since = parseSince(args.values.since);
-  if (since === undefined) return 2;
+/**
+ * 素材に落とす形。1日につき**機械1台ぶんが1件**。
+ *
+ * `~/ghq` の中身は機械ごとに違う（同じリポジトリを両方が clone していても、
+ * 片方だけ新しい、片方にしか無い、がありうる）。だから両方から出させて、
+ * 畳む側で **コミットハッシュで重複を落とす** —— worktree を二重に数えた
+ * 落とし穴17 と同じ形。
+ *
+ * プロジェクトの畳み方（落とし穴15）も集める側でやる。`repos()` が手元の
+ * `~/ghq` を見るので、畳む側（拠点しか見ない）では同じ答えが出せない。
+ */
+interface Wire {
+  readonly commits: {
+    at: string; project: string; sha: string; subject: string; files: [string, string][];
+  }[];
+  readonly troubles: {
+    at: string; project: string; tool: string; target: string; body: string; key: string;
+  }[];
+}
 
+/** 手元の git と jsonl から拾って、`素材/<機械>/作業/` に置く。 */
+function collect(since: string | null, sinceRaw: string | null, dryRun: boolean): [number, number, number] {
   const allRepos = repos();
   const daysCommits = new Map<string, Commit[]>();
   let found = 0;
 
   for (const repo of allRepos) {
-    for (const commit of commitsOf(repo, args.values.since ?? null)) {
+    for (const commit of commitsOf(repo, sinceRaw)) {
       const date = ymd(commit.dt);
       if (since && date < since) continue;
       const list = daysCommits.get(date);
@@ -506,64 +531,156 @@ function main(): number {
     for (const p of listFiles(CODEX_SESSIONS, ".jsonl")) logs.push([p, troublesFromCodex]);
   }
 
-  {
-    for (const [path, pull] of logs) {
-      let items: Trouble[];
-      try {
-        items = [...pull(path)];
-      } catch (err) {
-        // 1ファイルの失敗で全体を止めない
-        failed += 1;
-        console.error(`  ✗ ${basename(path)}: ${(err as Error).message}`);
-        continue;
-      }
-      for (const trouble of items) {
-        if (seen.has(trouble.key)) continue;
-        seen.add(trouble.key);
-        const date = ymd(trouble.dt);
-        if (since && date < since) continue;
-        trouble.project = fold(trouble.project, known);
-        const list = daysTroubles.get(date);
-        if (list) list.push(trouble);
-        else daysTroubles.set(date, [trouble]);
-      }
+  for (const [path, pull] of logs) {
+    let items: Trouble[];
+    try {
+      items = [...pull(path)];
+    } catch (err) {
+      // 1ファイルの失敗で全体を止めない
+      failed += 1;
+      console.error(`  ✗ ${basename(path)}: ${(err as Error).message}`);
+      continue;
+    }
+    for (const trouble of items) {
+      if (seen.has(trouble.key)) continue;
+      seen.add(trouble.key);
+      const date = ymd(trouble.dt);
+      if (since && date < since) continue;
+      trouble.project = fold(trouble.project, known);
+      const list = daysTroubles.get(date);
+      if (list) list.push(trouble);
+      else daysTroubles.set(date, [trouble]);
     }
   }
 
-  const stats: Record<WriteState, number> = { new: 0, updated: 0, same: 0 };
   const dates = [...new Set([...daysCommits.keys(), ...daysTroubles.keys()])].sort();
-
   for (const date of dates) {
-    const commits = (daysCommits.get(date) ?? []).sort((a, b) =>
-      a.dt.getTime() !== b.dt.getTime() ? a.dt.getTime() - b.dt.getTime()
-        : a.sha < b.sha ? -1 : a.sha > b.sha ? 1 : 0,
-    );
-    const troubles = (daysTroubles.get(date) ?? []).sort((a, b) => {
-      if (a.dt.getTime() !== b.dt.getTime()) return a.dt.getTime() - b.dt.getTime();
-      if (a.tool !== b.tool) return a.tool < b.tool ? -1 : 1;
-      return a.target < b.target ? -1 : a.target > b.target ? 1 : 0;
-    });
+    const wire: Wire = {
+      commits: (daysCommits.get(date) ?? []).map((c) => ({
+        at: isoJst(c.dt), project: c.project, sha: c.sha, subject: c.subject,
+        files: c.files.map(([a, b]) => [a, b] as [string, string]),
+      })),
+      troubles: (daysTroubles.get(date) ?? []).map((t) => ({
+        at: isoJst(t.dt), project: t.project, tool: t.tool, target: t.target,
+        body: t.body, key: t.key,
+      })),
+    };
+    writeSozai("作業", date, [wire], dryRun);
+  }
+  markCollected(dryRun);
+  return [dates.length, found, failed];
+}
+
+function compareCommit(a: Commit, b: Commit): number {
+  if (a.dt.getTime() !== b.dt.getTime()) return a.dt.getTime() - b.dt.getTime();
+  return a.sha < b.sha ? -1 : a.sha > b.sha ? 1 : 0;
+}
+
+function compareTrouble(a: Trouble, b: Trouble): number {
+  if (a.dt.getTime() !== b.dt.getTime()) return a.dt.getTime() - b.dt.getTime();
+  if (a.tool !== b.tool) return a.tool < b.tool ? -1 : 1;
+  return a.target < b.target ? -1 : a.target > b.target ? 1 : 0;
+}
+
+/** 全機械ぶんの素材を畳んで `作業/` に置く。ここは拠点しか見ない。 */
+function foldDays(
+  since: string | null,
+  dryRun: boolean,
+): [Record<WriteState, number>, number, number, number] {
+  const stats: Record<WriteState, number> = { new: 0, updated: 0, same: 0 };
+  const wires = readSozai<Wire>("作業");
+  const projects = new Set<string>();
+  let commitCount = 0;
+  let troubleCount = 0;
+
+  for (const date of [...wires.keys()].sort()) {
+    if (since && date < since) continue;
+
+    // 同じリポジトリが2台にあれば同じコミットが2回来る。
+    // 短縮ハッシュはリポジトリ間で衝突しうるので、プロジェクトと組で見る。
+    const seenSha = new Set<string>();
+    const commits: Commit[] = [];
+    const seenKey = new Set<string>();
+    const troubles: Trouble[] = [];
+
+    for (const w of wires.get(date)!) {
+      for (const c of w.commits ?? []) {
+        const id = `${c.project}\u0000${c.sha}`;
+        if (seenSha.has(id)) continue;
+        seenSha.add(id);
+        const dt = jst(c.at);
+        if (!dt) continue;
+        commits.push({ dt, project: c.project, sha: c.sha, subject: c.subject, files: c.files ?? [] });
+        projects.add(c.project);
+      }
+      for (const t of w.troubles ?? []) {
+        if (seenKey.has(t.key)) continue;
+        seenKey.add(t.key);
+        const dt = jst(t.at);
+        if (!dt) continue;
+        troubles.push({ dt, project: t.project, tool: t.tool, target: t.target, body: t.body, key: t.key });
+      }
+    }
+
+    commits.sort(compareCommit);
+    troubles.sort(compareTrouble);
     const out = join(ROOM, date.slice(0, 7), `${date}.md`);
-    stats[writeIfChanged(out, renderDay(date, commits, troubles), args.flags["dry-run"])] += 1;
+    stats[writeIfChanged(out, renderDay(date, commits, troubles), dryRun)] += 1;
+    commitCount += commits.length;
+    troubleCount += troubles.length;
+  }
+  return [stats, commitCount, troubleCount, projects.size];
+}
+
+// ---------------------------------------------------------------- 入口
+
+function main(): number {
+  const args = parseArgs(
+    process.argv.slice(2),
+    ["dry-run", "quiet", "collect-only", "fold-only"],
+    ["since"],
+  );
+  const since = parseSince(args.values.since);
+  if (since === undefined) return 2;
+  const dryRun = args.flags["dry-run"];
+
+  let failed = 0;
+  let gathered = 0;
+  let found = 0;
+  if (!args.flags["fold-only"]) {
+    [gathered, found, failed] = collect(since, args.values.since ?? null, dryRun);
   }
 
+  if (args.flags["collect-only"]) {
+    if (args.flags.quiet) {
+      console.log(`work: 集めた ${n(gathered)}日ぶん つくった ${n(found)}（畳まない）`);
+    } else {
+      if (dryRun) console.log("（書かずに確認）");
+      console.log(`  素材（作業） : ${n(gathered)} 日ぶん`);
+      console.log(`  つくった     : ${n(found)} コミット`);
+      console.log(`  ばしょ : ${join(KYOTEN, "素材")}`);
+    }
+    return failed ? 1 : 0;
+  }
+
+  const [stats, commitCount, nTroubles, nProjects] = foldDays(since, dryRun);
   const nDays = stats.new + stats.updated + stats.same;
-  const nTroubles = [...daysTroubles.values()].reduce((a, v) => a + v.length, 0);
 
   if (args.flags.quiet) {
     console.log(
       `work: ${nDays}日 (new ${stats.new} / upd ${stats.updated} ` +
-        `/ same ${stats.same}) つくった ${n(found)} つまずいた ${n(nTroubles)}`,
+        `/ same ${stats.same}) つくった ${n(commitCount)} つまずいた ${n(nTroubles)} ${fleetNote()}`,
     );
   } else {
-    if (args.flags["dry-run"]) console.log("（書かずに確認）");
+    if (dryRun) console.log("（書かずに確認）");
     console.log(`  作業         : ${n(nDays)} 日ぶん`);
     console.log(`    あたらしい : ${n(stats.new)}`);
     console.log(`    かきかえ   : ${n(stats.updated)}`);
     console.log(`    かわらず   : ${n(stats.same)}`);
-    console.log(`  つくった     : ${n(found)} コミット（${n(allRepos.length)} リポジトリ）`);
+    console.log(`  つくった     : ${n(commitCount)} コミット（${n(nProjects)} リポジトリ）`);
     console.log(`  つまずいた   : ${n(nTroubles)}`);
     if (failed) console.log(`    しっぱい   : ${n(failed)}`);
+    console.log(`  ${fleetNote()}`);
     console.log(`  ばしょ : ${ROOM}`);
   }
 

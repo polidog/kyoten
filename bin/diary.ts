@@ -72,6 +72,7 @@ import {
   ymd,
 } from "./util.ts";
 import { listFiles, parseArgs, parseSince } from "./cli.ts";
+import { appendLimit } from "./machine.ts";
 
 const ROOM = join(KYOTEN, "日記");
 
@@ -272,9 +273,14 @@ function main(): number {
   }
 
   const today = ymd(jst(new Date().toISOString())!);
+  // 拠点を複数の PC で共有しているときは、**全機械の素材が揃った日まで**
+  // しか書かない。日記は追記のみなので、片肺の素材で書くとその日は
+  // 永久に片肺のまま残る（`株/` の落とし穴69 と同じ構え。遅れるだけで、
+  // 抜けはしない）。1台で使っているうちは `today` のまま。
+  const { limit, held } = appendLimit(today);
   const lived = datesIn("アイボ");
-  const open = lived.filter((d) => d >= today);
-  const targets = lived.filter((d) => d < today && (!since || d >= since));
+  const open = lived.filter((d) => d >= limit);
+  const targets = lived.filter((d) => d < limit && (!since || d >= since));
 
   let written = 0;
   let already = 0;
@@ -313,7 +319,7 @@ function main(): number {
   if (args.flags.quiet) {
     console.log(
       `diary: ${n(already + written)}日 (new ${written} / ある ${already}` +
-        (failed ? ` / 書けず ${failed}` : "") + ")",
+        (failed ? ` / 書けず ${failed}` : "") + ")" + (held ? ` ／ ${held}` : ""),
     );
   } else {
     if (args.flags["dry-run"]) console.log("（書かずに確認）");

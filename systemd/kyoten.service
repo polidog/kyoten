@@ -7,6 +7,9 @@ Documentation=https://github.com/polidog/kyoten
 After=network-online.target
 Wants=network-online.target
 
+# 複数の PC で走らせてよい。何をするかは `config.ts` が hostname で決める
+# （母艦は全部・そうでない機械は集めるだけ）。unit は全機械で同じものを置く。
+
 [Service]
 Type=oneshot
 

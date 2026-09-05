@@ -33,6 +33,12 @@
  *     aibo.ts --dry-run       # 書かずに結果だけ
  *     aibo.ts --since 2026-08-01
  *     aibo.ts --quiet         # 1行だけ（定時便用）
+ *     aibo.ts --collect-only  # 素材に落とすだけ（母艦でない機械）
+ *     aibo.ts --fold-only     # 素材から畳むだけ
+ *
+ * 拠点を複数の PC で共有するため、2段になっている（`machine.ts` を見る）。
+ * **プロジェクトの畳み方（落とし穴15）は集める側でやる** —— `knownProjects()`
+ * が手元の `~/ghq` を見るので、畳む側では答えが出せない。
  */
 
 import { existsSync } from "node:fs";
@@ -46,6 +52,7 @@ import {
   clip,
   frontmatter,
   hhmm,
+  isoJst,
   jst,
   n,
   readJsonl,
@@ -57,6 +64,7 @@ import {
 } from "./util.ts";
 import { listFiles, parseArgs, parseSince } from "./cli.ts";
 import { fold, knownProjects } from "./work.ts";
+import { fleetNote, markCollected, readSozai, writeSozai } from "./machine.ts";
 
 const ROOM = join(KYOTEN, "アイボ");
 
@@ -509,19 +517,115 @@ function render(date: string, day: Day): string {
   return head + `\n\n# ${date} のアイボ\n\n` + body.join("\n\n") + "\n";
 }
 
-// ---------------------------------------------------------------- 入口
+// ---------------------------------------------------------------- 素材
 
-function main(): number {
-  const args = parseArgs(process.argv.slice(2), ["dry-run", "quiet"], ["since"]);
-  const since = parseSince(args.values.since);
-  if (since === undefined) return 2;
+/**
+ * 素材に落とす形。`Day` はカウンタと Map の塊なので、そのままでは書けない。
+ *
+ * 1日につき**機械1台ぶんが1件**。畳む側で足し合わせる（数は和、顔ぶれは
+ * 和集合、並びは key で重複を落としてから並べ直す）。
+ */
+interface Wire {
+  /**
+   * 元 jsonl の名前（UUID）。**素材は1本のセッションにつき1件**にしてある。
+   *
+   * 日ごとにまとめて1件にしていたら、同じセッションを2台が持っていたとき
+   * （`~/.claude` を写した、`--resume` が両方に残った）に、数を**そのまま
+   * 2回足してしまう**。実測で発言 3,554 が 7,112 になった —— worktree を
+   * 二重に数えた落とし穴17 と同じ形。deeds は key で落ちるのに、カウンタ
+   * だけ鍵を持っていなかった。
+   *
+   * 絶対パスではなく名前にするのは、機械ごとに home が違っても同じ
+   * セッションだと分かるようにするため。
+   */
+  readonly session: string;
+  readonly sources: string[];
+  readonly speech: number;
+  readonly tools: number;
+  readonly helperSpeech: number;
+  readonly helperTools: number;
+  readonly models: [string, number][];
+  readonly toolCounts: [string, number][];
+  readonly byProject: [string, [number, number]][];
+  readonly deeds: { at: string; project: string; tool: string; label: string; code: boolean; key: string }[];
+  readonly told: { at: string; project: string; kind: Told["kind"]; body: string; key: string }[];
+}
 
-  const days = new Map<string, Day>();
+function toWire(session: string, day: Day): Wire {
+  return {
+    session,
+    sources: [session],
+    speech: day.speech,
+    tools: day.tools,
+    helperSpeech: day.helperSpeech,
+    helperTools: day.helperTools,
+    models: [...day.models.entries()].sort(),
+    toolCounts: [...day.toolCounts.entries()].sort(),
+    byProject: [...day.byProject.entries()].sort(),
+    deeds: day.deeds.map((d) => ({
+      at: isoJst(d.dt), project: d.project, tool: d.tool, label: d.label, code: d.code, key: d.key,
+    })),
+    told: day.told.map((t) => ({
+      at: isoJst(t.dt), project: t.project, kind: t.kind, body: t.body, key: t.key,
+    })),
+  };
+}
+
+/** 機械ぶんの Wire を1つの Day に足し合わせる。 */
+function merge(wires: readonly Wire[]): Day {
+  const day = new Day();
+  const seenDeed = new Set<string>();
+  const seenTold = new Set<string>();
+  const seenSession = new Set<string>();
+
+  for (const w of wires) {
+    // 同じセッションが2台にあれば、**数ごと**1回だけ数える（機械名の昇順で先勝ち）
+    if (w.session) {
+      if (seenSession.has(w.session)) continue;
+      seenSession.add(w.session);
+    }
+    for (const s of w.sources ?? []) day.sources.add(s);
+    day.speech += w.speech ?? 0;
+    day.tools += w.tools ?? 0;
+    day.helperSpeech += w.helperSpeech ?? 0;
+    day.helperTools += w.helperTools ?? 0;
+    for (const [k, v] of w.models ?? []) day.models.set(k, (day.models.get(k) ?? 0) + v);
+    for (const [k, v] of w.toolCounts ?? []) {
+      day.toolCounts.set(k, (day.toolCounts.get(k) ?? 0) + v);
+    }
+    for (const [k, [sp, tl]] of w.byProject ?? []) day.countProject(k, sp, tl);
+
+    for (const d of w.deeds ?? []) {
+      // 同じセッションが2台に写っていても1回だけ（機械名の昇順で先勝ち）
+      if (seenDeed.has(d.key)) continue;
+      seenDeed.add(d.key);
+      const dt = jst(d.at);
+      if (!dt) continue;
+      day.deeds.push({ dt, project: d.project, tool: d.tool, label: d.label, code: d.code, key: d.key });
+    }
+    for (const t of w.told ?? []) {
+      if (seenTold.has(t.key)) continue;
+      seenTold.add(t.key);
+      const dt = jst(t.at);
+      if (!dt) continue;
+      day.told.push({ dt, project: t.project, kind: t.kind, body: t.body, key: t.key });
+    }
+  }
+  return day;
+}
+
+/** 手元の jsonl から拾って、`素材/<機械>/アイボ/` に置く。 */
+function collect(since: string | null, dryRun: boolean): [number, number] {
+  // **1本ずつ別の Day に集める。** 日ごとにまとめてしまうと、セッションを
+  // 鍵にした重複落としができなくなる（上の `Wire.session` を見る）。
+  const perDate = new Map<string, Wire[]>();
   const seen = new Set<string>();
   let failed = 0;
 
   // モノレポの奥で作業した回を、リポジトリ1つに畳む（落とし穴15）。畳み方は
   // `work.ts` から借りる —— 同じ cwd について違う名前を言う部屋を作らないため。
+  // **ここでやる**のが要点。`knownProjects()` は手元の `~/ghq` を見るので、
+  // 畳む側（拠点しか見ない）では同じ答えが出せない。
   const known = knownProjects();
 
   const jobs: [
@@ -536,37 +640,97 @@ function main(): number {
   }
 
   for (const [path, pull] of jobs) {
+    const one = new Map<string, Day>();
     try {
-      pull(days, path, seen, known);
+      pull(one, path, seen, known);
     } catch (err) {
       // 1ファイルの失敗で全体を止めない
       failed += 1;
       console.error(`  ✗ ${path.split("/").at(-1)}: ${(err as Error).message}`);
+      continue;
+    }
+    const session = path.split("/").at(-1)!.replace(/\.jsonl$/, "");
+    for (const [date, day] of one) {
+      if (!day.speech && !day.tools) continue;
+      const list = perDate.get(date);
+      if (list) list.push(toWire(session, day));
+      else perDate.set(date, [toWire(session, day)]);
     }
   }
 
+  let wrote = 0;
+  for (const date of [...perDate.keys()].sort()) {
+    if (since && date < since) continue;
+    // セッション名で並べる —— 読み込んだ順（＝その機械のファイル配置）に
+    // 依らせない
+    const wires = perDate.get(date)!.sort((a, b) => (a.session < b.session ? -1 : 1));
+    writeSozai("アイボ", date, wires, dryRun);
+    wrote += 1;
+  }
+  markCollected(dryRun);
+  return [wrote, failed];
+}
+
+/** 全機械ぶんの素材を畳んで `アイボ/` に置く。ここは拠点しか見ない。 */
+function foldDays(
+  since: string | null,
+  dryRun: boolean,
+): [Record<WriteState, number>, number, number] {
   const stats: Record<WriteState, number> = { new: 0, updated: 0, same: 0 };
+  const wires = readSozai<Wire>("アイボ");
   let speech = 0;
   let tools = 0;
 
-  for (const date of [...days.keys()].sort()) {
+  for (const date of [...wires.keys()].sort()) {
     if (since && date < since) continue;
-    const day = days.get(date)!;
+    const day = merge(wires.get(date)!);
     if (!day.speech && !day.tools) continue;
+    day.deeds.sort(compare);
+    day.told.sort(compareTold);
     const out = join(ROOM, date.slice(0, 7), `${date}.md`);
-    stats[writeIfChanged(out, render(date, day), args.flags["dry-run"])] += 1;
+    stats[writeIfChanged(out, render(date, day), dryRun)] += 1;
     speech += day.speech;
     tools += day.tools;
   }
+  return [stats, speech, tools];
+}
 
+// ---------------------------------------------------------------- 入口
+
+function main(): number {
+  const args = parseArgs(
+    process.argv.slice(2),
+    ["dry-run", "quiet", "collect-only", "fold-only"],
+    ["since"],
+  );
+  const since = parseSince(args.values.since);
+  if (since === undefined) return 2;
+  const dryRun = args.flags["dry-run"];
+
+  let failed = 0;
+  let gathered = 0;
+  if (!args.flags["fold-only"]) [gathered, failed] = collect(since, dryRun);
+
+  if (args.flags["collect-only"]) {
+    if (args.flags.quiet) console.log(`aibo: 集めた ${n(gathered)}日ぶん（畳まない）`);
+    else {
+      if (dryRun) console.log("（書かずに確認）");
+      console.log(`  素材（アイボ）: ${n(gathered)} 日ぶん`);
+      console.log(`  ばしょ : ${join(KYOTEN, "素材")}`);
+    }
+    return failed ? 1 : 0;
+  }
+
+  const [stats, speech, tools] = foldDays(since, dryRun);
   const nDays = stats.new + stats.updated + stats.same;
+
   if (args.flags.quiet) {
     console.log(
       `aibo: ${nDays}日 (new ${stats.new} / upd ${stats.updated} ` +
-        `/ same ${stats.same}) 発言 ${n(speech)} 道具 ${n(tools)}`,
+        `/ same ${stats.same}) 発言 ${n(speech)} 道具 ${n(tools)} ${fleetNote()}`,
     );
   } else {
-    if (args.flags["dry-run"]) console.log("（書かずに確認）");
+    if (dryRun) console.log("（書かずに確認）");
     console.log(`  アイボ       : ${n(nDays)} 日ぶん`);
     console.log(`    あたらしい : ${n(stats.new)}`);
     console.log(`    かきかえ   : ${n(stats.updated)}`);
@@ -574,6 +738,7 @@ function main(): number {
     if (failed) console.log(`    しっぱい   : ${n(failed)}`);
     console.log(`  発言         : ${n(speech)}`);
     console.log(`  道具         : ${n(tools)}`);
+    console.log(`  ${fleetNote()}`);
     console.log(`  ばしょ : ${ROOM}`);
   }
 

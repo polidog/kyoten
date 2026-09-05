@@ -53,6 +53,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
 import { parseArgs, parseSince } from "./cli.ts";
+import { chromeRoot, fleetNote, markCollected, readSozai, writeSozai } from "./machine.ts";
 import {
   KYOTEN,
   frontmatter,
@@ -68,8 +69,7 @@ const ROOM = join(KYOTEN, "読んだ");
 const POSTS = join(KYOTEN, "投稿");
 
 /** Chrome のプロファイル。両方見る（Default は 90 日ぶん、Profile 1 は新しい）。 */
-const CHROME_ROOT = process.env.KYOTEN_CHROME ??
-  join(homedir(), ".config/google-chrome");
+const CHROME_ROOT = chromeRoot();
 
 /**
  * Chrome の `visit_time` は 1601-01-01 からのマイクロ秒で 1.3e16 になる。
@@ -372,6 +372,52 @@ function postDays(list: ReadonlySet<string>, since: string | null): Map<string, 
   return out;
 }
 
+// ---------------------------------------------------------------- 素材
+
+/**
+ * Chrome の履歴は**その機械のもの**なので、素材に落としてから畳む。
+ * `Link` はそのまま JSON になる（Date を持たない）ので、変換は要らない。
+ *
+ * `投稿/` から起こすほう（`postDays`）は拠点しか見ないので素材を通さない。
+ * どの機械で走らせても同じものが出る。
+ */
+function collect(list: ReadonlySet<string>, since: string | null, dryRun: boolean): number {
+  const days = chromeDays(list, since);
+  let wrote = 0;
+  for (const [date, links] of [...days].sort()) {
+    // 0 件の日は書かない。履歴は 90 日で消えるので、「読まなかった日」と
+    // 「もう残っていない日」の区別がつかない（落とし穴14）。
+    if (!links.length) continue;
+    writeSozai("読んだ", date, links, dryRun);
+    wrote += 1;
+  }
+  markCollected(dryRun);
+  return wrote;
+}
+
+/**
+ * 全機械ぶんの Chrome の素材を1日1枚に畳む。
+ *
+ * 畳む鍵は `chromeDays()` と同じ **ホストと題**（無ければ URL）。同じ
+ * ページを2台で開いていたら1行にする。残すのはいちばん短い URL。
+ */
+function foldChrome(since: string | null): Map<string, Link[]> {
+  const out = new Map<string, Link[]>();
+  for (const [date, links] of readSozai<Link>("読んだ")) {
+    if (since && date < since) continue;
+    const day = new Map<string, Link>();
+    for (const link of links) {
+      if (!link?.url || !link.host) continue;
+      const key = link.title ? `${link.host}\t${link.title}` : link.url;
+      const seen = day.get(key);
+      if (!seen || link.url.length < seen.url.length) day.set(key, link);
+    }
+    out.set(date, [...day.values()].sort((a, b) =>
+      a.host.localeCompare(b.host) || a.url.localeCompare(b.url)));
+  }
+  return out;
+}
+
 // ---------------------------------------------------------------- 書く
 
 /** Markdown のリンクに入れて壊れない形にする（タイトルに `]` がありうる）。 */
@@ -435,7 +481,7 @@ type Source = (typeof SOURCES)[number];
 function main(): number {
   const args = parseArgs(
     process.argv.slice(2),
-    ["dry-run", "quiet", "hosts"],
+    ["dry-run", "quiet", "hosts", "collect-only", "fold-only"],
     ["since", "source", "show"],
   );
   const since = parseSince(args.values.since);
@@ -465,6 +511,25 @@ function main(): number {
     return 0;
   }
 
+  // 手元の Chrome から素材へ。畳むのは下（拠点しか見ない）。
+  if (!args.flags["fold-only"] && wanted.includes("chrome")) {
+    let gathered = 0;
+    try {
+      gathered = collect(list, since, args.flags["dry-run"]);
+    } catch (err) {
+      // 取りに行けなかったソースは無かったことにする（落とし穴14）
+      console.error(`  ✗ chrome: ${(err as Error).message}`);
+    }
+    if (args.flags["collect-only"]) {
+      if (args.flags.quiet) console.log(`reading: 集めた ${n(gathered)}日ぶん（畳まない）`);
+      else {
+        if (args.flags["dry-run"]) console.log("（書かずに確認）");
+        console.log(`  素材（読んだ）: ${n(gathered)} 日ぶん`);
+      }
+      return 0;
+    }
+  }
+
   const writer = new Writer(args.flags["dry-run"]);
   const counts = new Map<Source, number>();
   const perHost = new Map<string, number>();
@@ -474,7 +539,7 @@ function main(): number {
     if (!wanted.includes(source)) continue;
     try {
       const days = source === "chrome"
-        ? chromeDays(list, since)
+        ? foldChrome(since)
         : postDays(list, since);
       counts.set(source, save(writer, source, days));
       for (const links of days.values()) {
@@ -492,7 +557,7 @@ function main(): number {
     const got = [...counts.entries()].map(([k, v]) => `${k} ${v}`).join(" ");
     console.log(
       `reading: ${writer.total}ファイル (new ${stats.new} / upd ${stats.updated} ` +
-      `/ same ${stats.same}) ${got} ／ allowlist ${list.size}`,
+      `/ same ${stats.same}) ${got} ／ allowlist ${list.size} ${fleetNote()}`,
     );
   } else {
     if (args.flags["dry-run"]) console.log("（書かずに確認）");

@@ -64,8 +64,9 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { KYOTEN, clip, frontmatter, n, readText, splitFrontmatter } from "./util.ts";
+import { KYOTEN, clip, frontmatter, jst, n, readText, splitFrontmatter, ymd } from "./util.ts";
 import { listFiles, parseArgs, parseSince } from "./cli.ts";
+import { appendLimit } from "./machine.ts";
 
 const ROOM = join(KYOTEN, "よその日記");
 
@@ -307,7 +308,10 @@ function main(): number {
 
   // 書けるのは**ニュースと記録がそろった日**。ニュースが無い日は外が
   // 空になるので、この部屋の値打ちが消える —— 書かずに待つ
+  // 追記のみなので、全機械の素材が揃った日までしか書かない（`diary.ts` と同じ）
+  const { limit, held } = appendLimit(ymd(jst(new Date().toISOString())!));
   const targets = datesIn("ニュース")
+    .filter((d) => d < limit)
     .filter((d) => !since || d >= since)
     .filter((d) => dayFile("アイボ", d));
 
@@ -354,7 +358,7 @@ function main(): number {
     const lost = [...broken.keys()];
     console.log(
       `guest: ${n(already + written)}枚 (new ${written} / ある ${already}` +
-        (lost.length ? ` / 書けず ${lost.join("・")}` : "") + ")",
+        (lost.length ? ` / 書けず ${lost.join("・")}` : "") + ")" + (held ? ` ／ ${held}` : ""),
     );
   } else {
     if (args.flags["dry-run"]) console.log("（書かずに確認）");
