@@ -537,6 +537,27 @@ function xUnescape(text: string): string {
  * 返信は自分の言葉なので拾う。誰への返信かだけ印に足す —— アーカイブには
  * 相手の投稿が入っていないので、これが唯一の手がかりになる。
  */
+/**
+ * 投稿の時刻。アーカイブの `created_at` を信じるが、壊れているものがある。
+ *
+ * 実測（2026-09-05 のアーカイブ、80,791 件）で 2 件が 1998 年と 2001 年 ——
+ * X が生まれる前の日付で、そのまま書くと `投稿/1998-08/` ができる。
+ * ID は snowflake（2010-11-04 以降。上位ビットが ms の時刻）なので本当の
+ * 時刻を持っている。**1日以上食い違うときだけ** ID の時刻を採る ——
+ * 残り 76,653 件は 1 分の内で一致していたので、常に ID を採ると
+ * 秒の桁で全件が動きかねない。
+ */
+const SNOWFLAKE_EPOCH_MS = 1_288_834_974_657;
+
+function xTime(it: Tweet): Date | null {
+  const said = jst(it.created_at);
+  const id = /^\d{16,}$/.test(String(it.id_str ?? "")) ? BigInt(it.id_str!) : null;
+  if (id === null) return said;
+  const known = jst(new Date(Number(id >> 22n) + SNOWFLAKE_EPOCH_MS).toISOString());
+  if (!said || !known) return said ?? known;
+  return Math.abs(said.getTime() - known.getTime()) > 86_400_000 ? known : said;
+}
+
 function x(writer: Writer, since: string | null): number {
   const dir = xRoot();
   if (dir === null) throw new Unreachable(`${X_ARCHIVE}: アーカイブがありません`);
@@ -552,7 +573,7 @@ function x(writer: Writer, since: string | null): number {
       const text = xUnescape(String(it.full_text ?? "")).trim();
       if (!text) continue;
       if (/^RT @[A-Za-z0-9_]+: /.test(text)) continue; // リツイート
-      const dt = jst(it.created_at);
+      const dt = xTime(it);
       if (!dt) continue;
 
       const to = String(it.in_reply_to_screen_name ?? "");
