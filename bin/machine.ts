@@ -205,6 +205,12 @@ function collectedOn(machine: string): string | null {
  *
  * 素材がまだ1台ぶんも無ければ null（門を建てない）—— 1台で使っている
  * ときに、いまと同じに動かすため。
+ *
+ * **見るのは「素材が一度でも届いた機械」だけ。** `config.ts` に書いてあっても
+ * まだ一度も流していない機械は待たない —— 待つと、設定に1行足した瞬間に
+ * 日記が止まる（「宣言した」と「動いている」を混ぜないため）。そのぶん
+ * 「向こうは動いているのに Obsidian が `.json` を運んでいない」を門では
+ * 捕まえられないので、**そこは `fleetNote()` と `doctor.ts` が毎回言う**。
  */
 export function settledThrough(): string | null {
   const list = machines();
@@ -248,5 +254,9 @@ export function appendLimit(today: string): { limit: string; held: string | null
 export function fleetNote(): string {
   const list = machines();
   if (!list.length) return "素材 なし（この機械のログから直に畳む）";
-  return `素材 ${list.length}台（${list.join(" / ")}）`;
+  // `config.ts` にあるのに素材が届いていない機械は名指しする。門は待たないので
+  // （上のとおり）、**ここで言わないと黙って片肺で畳む**（落とし穴77）。
+  const missing = Object.keys(MACHINES).filter((m) => !list.includes(m));
+  return `素材 ${list.length}台（${list.join(" / ")}）` +
+    (missing.length ? ` ／ ${missing.join(" / ")} が届いていない` : "");
 }

@@ -59,6 +59,7 @@ Slack スレッド全文、認証まわりの試行錯誤——全部入って�
 | `bin/web.ts` | ブラウザで拠点を読む。まとめ・一覧・原文・検索（127.0.0.1 固定） |
 | `bin/browse.ts` | 端末で拠点を歩く。同じものを同じ読み取り層から出す |
 | `bin/hook.ts` | Claude Code の hooks から拠点を思い出させる |
+| `bin/doctor.ts` | この機械の具合を見る。何が足りないか名指しする |
 | `bin/nightly.ts` | 定時便。全部流して拠点を git commit する |
 
 共通部品は `bin/util.ts`、引数まわりは `bin/cli.ts`、
@@ -162,6 +163,34 @@ TypeScript ならパーサが要らず、コメントが書けて、壊れてい
 拠点の git は **1台だけ**が打つ（`commit: true`）。Obsidian Sync は
 ドットで始まるものを運ばないので `.git` は機械ごとに別物になり、2台で
 打つと同じ内容について2本の履歴ができる。
+
+### 建てるときは `bin/doctor.ts` と `/kyoten`
+
+セットアップの判定は、ほとんど**機械にできる**。hostname が `config.ts` に
+載っているか、timer が enabled か、`.gitignore` に `素材/` があるか ——
+どれも読めば分かるので、`doctor.ts` に読ませる（**読むだけ**。拠点にも設定にも
+書かない）。印は3つで、**「まだ」を「壊れている」として扱わない**（落とし穴64）:
+
+```
+✓ できている　　・ まだ（→ に直しかたが出る）　　✗ 食い違い
+```
+
+人にしかできないのは2つだけ —— **Obsidian Sync の選択同期**（GUI）と、
+**hostname を何にするか**。前者は off でもエラーが出ないので、
+`doctor.ts` と、畳む道具の毎晩の1行が名指しする:
+
+```
+me: 9日 (…) 素材 1台（poliomarchy） ／ poli-omarchy-intel が届いていない
+```
+
+**門はここを待たない。** `config.ts` に書いてあってもまだ一度も流していない
+機械は、素材が1つも無いので待ちようがない —— 待つと、設定に1行足した瞬間に
+日記が止まる（「宣言した」と「動いている」を混ぜない）。そのぶん、
+届いていないことは**毎回言う**。
+
+直す口が `/kyoten`（`skills/kyoten/SKILL.md`）。doctor を叩いて、`→` の行を
+見せて、直せるものを直す。**拠点には書かない** —— あれは設定を見る口であって、
+部屋を書く口ではない。
 
 ## 原則
 
@@ -1145,6 +1174,8 @@ rm -rf "$K/素材/laptop"
 
 ```bash
 KYOTEN_MACHINE=laptop bin/nightly.ts --dry-run --no-commit
+bin/doctor.ts                                   # ✓ / ・ / ✗ が揃っているか
+KYOTEN_MACHINE=poli-omarchy-intel bin/doctor.ts  # 向こうの機械から見た姿
 ```
 
 `sessions.ts` と `aibo.ts` は `upd` が 0 にならない —— いま喋っている
@@ -1300,6 +1331,11 @@ bin/browse.ts スキル php     # 部屋と行き先を指して始める
 bin/browse.ts --plain 週報   # 対話せず1回だけ描く
 bin/browse.ts --plain さがす 冪等
 
+bin/doctor.ts               # この機械の具合を見る（読むだけ）
+bin/doctor.ts --quiet       # 足りないものだけ
+                            # ✓ できている / ・ まだ / ✗ 食い違い
+                            # 直す口は skill の `/kyoten`
+
 bin/hook.ts                 # 呼び方だけ出す（hooks から stdin で呼ばれる）
 bin/hook.ts --check         # `自分/` に当てて、何割で鳴るか数える
 ```
@@ -1309,6 +1345,11 @@ symlink してある —— ほかの21個と同じ置きかた（`<repo>/skills
 を `~/.claude/skills/<name>` へ）。立ち位置と喋りかたは `skills/aibo/stance.md`
 の1枚で、`diary.ts` と共有している。
 よその犬の立ち位置は `stance/guest.md` の1枚で、`guest.ts` が読む。
+
+`/kyoten` も **skill**（`skills/kyoten/SKILL.md`）で、同じ置きかた。こちらは
+アイボではなく**この機械の面倒を見る口** —— 判定は `bin/doctor.ts` が全部やり、
+skill は直しかたと、直してよいもの／いけないものだけを持つ。立ち位置の紙は
+無い（喋る口ではないので）。
 
 `/kabu` も **skill**（`skills/kabu/SKILL.md`）で、同じ置きかた。株のときの
 構えは `skills/kabu/stance.md` の1枚で、`outlook.ts` と `/kabu` と
