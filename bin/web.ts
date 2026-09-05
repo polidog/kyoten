@@ -47,6 +47,10 @@ function list(room: string): unknown {
       return vault.diaryList();
     case "stock":
       return vault.stockList();
+    case "news":
+      return vault.newsList();
+    case "reading":
+      return vault.readingList();
     case "events":
       return vault.eventList();
     case "weekly":
@@ -193,7 +197,13 @@ function api(u: URL): unknown {
       // 値の一部ではなく「それを見てアイボが言ったもの」なので別に持たせる
       const priced = /^株\/\d{4}-\d{2}\/(\d{4}-\d{2}-\d{2})\.md$/.exec(path);
       const seen = priced ? vault.outlookOn(priced[1]) : null;
-      return seen ? { ...doc, outlook: seen } : doc;
+      if (seen) return { ...doc, outlook: seen };
+      // ニュースを開いたときは、その日のおすすめも添える。株と見立てと
+      // まったく同じ形 —— 話題は機械が集めたもので、おすすめはそれを見て
+      // アイボが言ったものなので、同じ紙に混ぜない
+      const topics = /^ニュース\/\d{4}-\d{2}\/(\d{4}-\d{2}-\d{2})\.md$/.exec(path);
+      const chose = topics ? vault.picksOn(topics[1]) : null;
+      return chose ? { ...doc, outlook: chose } : doc;
     }
     case "/api/raw":
       return vault.raw(u.searchParams.get("path") ?? "") ?? undefined;

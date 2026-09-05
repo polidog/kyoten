@@ -284,7 +284,9 @@ mark{background:var(--gold-wash);color:var(--ink);border-bottom:1px solid var(--
   <a class="home" href="#/">＊ 鑑識 ＊</a>
   <a class="nav" href="#/" data-at="#/">まとめ</a>
   <a class="nav" href="#/list/diary">日記</a>
+  <a class="nav" href="#/list/news">ニュース</a>
   <a class="nav" href="#/list/stock">株</a>
+  <a class="nav" href="#/list/reading">読んだ</a>
   <a class="nav" href="#/list/weekly">週報</a>
   <a class="nav" href="#/list/trend">推移</a>
   <a class="nav" href="#/list/skill">スキル</a>
@@ -676,7 +678,8 @@ function saidBlock(c) {
 function midateBlock(doc) {
   return '<div class="said"><div class="said-who">' + aibo(true) +
     '<div class="aibo-who">アイボ</div></div>' +
-    '<div class="said-body"><p class="who">見立て（' +
+    '<div class="said-body"><p class="who">' +
+    ((doc.fields && doc.fields.room === "おすすめ") ? "おすすめ" : "見立て") + "（" +
     esc((doc.fields && doc.fields.by) || "") + "）</p>" +
     paragraphs(doc.body) + "</div></div>";
 }
@@ -1030,6 +1033,16 @@ var LISTS = {
       "数で見た年表は<a href=\"#/list/timeline\">としごとのかたち</a>にある。",
   },
   entity: { kicker: "事典", title: "プロジェクトの 台帳", note: "会話とコミットを、プロジェクトごとに畳んだもの。" },
+  news: {
+    kicker: "ニュース", title: "その日 外で 話されて いたこと",
+    note: "拠点で唯一「polidog でも AI でもない」記録。1日ひらくと、" +
+      "<b>アイボが選んだおすすめ</b>がその下に座る（株と見立てと同じ置きかた）。",
+  },
+  reading: {
+    kicker: "読んだ", title: "polidog が ひらいた さき",
+    note: "Chrome の履歴と、投稿でシェアしたリンクから起こしたもの。" +
+      "入れる先は<b>投稿に出てくるホストだけ</b>に絞ってある（仕事も検索も買い物も入らない）。",
+  },
 };
 
 function renderList(kind, items, extra) {
@@ -1070,6 +1083,36 @@ function renderList(kind, items, extra) {
         '<span class="r-body">' + num(d.value) + "円　" + esc(gain) + "</span>" + said +
         '<span class="r-track"><i style="width:' + ((d.value / maxV) * 100).toFixed(2) + '%"></i></span>' +
         '<span class="r-num">' + num(d.holdings) + "</span></a>");
+    });
+    out.push("</div>");
+  } else if (kind === "news") {
+    var maxN = Math.max.apply(null, items.map(function (d) { return d.hn + d.hatena; }).concat([1]));
+    out.push('<div class="rows">');
+    items.slice().reverse().forEach(function (d) {
+      // おすすめは「その日に選んである」印。株の「見立てあり」と同じ扱い
+      var said = d.said ? '<span class="said-tag">おすすめあり</span>' : "";
+      var n2 = d.hn + d.hatena;
+      out.push('<a class="row" href="' + docHref(d.path) + '">' +
+        '<span class="r-key">' + esc(d.date) + "</span>" +
+        '<span class="r-body">HN ' + num(d.hn) +
+        (d.hatena ? "　はてブ " + num(d.hatena) : "") + "</span>" + said +
+        '<span class="r-track"><i style="width:' + ((n2 / maxN) * 100).toFixed(2) + '%"></i></span>' +
+        '<span class="r-num">' + num(n2) + "</span></a>");
+    });
+    out.push("</div>");
+  } else if (kind === "reading") {
+    var maxL = Math.max.apply(null, items.map(function (d) { return d.links; }).concat([1]));
+    out.push('<div class="rows">');
+    items.slice().reverse().forEach(function (d) {
+      // どこから起こしたか。履歴とシェアは別のことなので混ぜずに出す
+      var how = d.sources.map(function (x) {
+        return x === "chrome" ? "ひらいた" : "シェアした";
+      }).join("・");
+      out.push('<a class="row" href="' + docHref(d.path) + '">' +
+        '<span class="r-key">' + esc(d.date) + "</span>" +
+        '<span class="r-body">' + esc(how) + "</span>" +
+        '<span class="r-track"><i style="width:' + ((d.links / maxL) * 100).toFixed(2) + '%"></i></span>' +
+        '<span class="r-num">' + num(d.links) + "</span></a>");
     });
     out.push("</div>");
   } else if (kind === "weekly" || kind === "trend") {
@@ -1193,7 +1236,7 @@ function renderDoc(doc) {
 
 // ---------------------------------------------------------------- さがす
 
-var ROOMS = ["会話", "自分", "アイボ", "日記", "よその日記", "出来事", "ニュース", "投稿", "作業", "株", "見立て", "事典", "プロフィール", "週報", "アーカイブ"];
+var ROOMS = ["会話", "自分", "アイボ", "日記", "よその日記", "出来事", "ニュース", "おすすめ", "読んだ", "投稿", "作業", "株", "見立て", "事典", "プロフィール", "週報", "アーカイブ"];
 var findRoom = "";
 
 async function renderSearch(q) {
@@ -1238,6 +1281,9 @@ var OF_ROOM = [
   ["よその日記", "#/list/diary"],
   ["株", "#/list/stock"],
   ["見立て", "#/list/stock"],
+  ["ニュース", "#/list/news"],
+  ["おすすめ", "#/list/news"],
+  ["読んだ", "#/list/reading"],
   ["週報", "#/list/weekly"],
   ["事典", "#/list/entity"],
   ["アーカイブ", treeHref("アーカイブ")],

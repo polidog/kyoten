@@ -609,6 +609,99 @@ export function outlookOn(date: string): Doc | null {
   return existsSync(abs) ? readDoc(abs) : null;
 }
 
+// ---------------------------------------------------------------- ニュース
+
+export interface NewsHead {
+  readonly date: string;
+  readonly hn: number;
+  readonly hatena: number;
+  readonly path: string;
+  /** その日におすすめが書かれているか。一覧で「選んである日」が分かるように */
+  readonly said: boolean;
+}
+
+export function newsList(): readonly NewsHead[] {
+  const paths = listFiles(room("ニュース"), ".md");
+  const picked = listFiles(room("おすすめ"), ".md");
+  return cached("news", [...paths, ...picked], () => {
+    const days = new Set(picked.map((abs) => basename(abs).slice(0, -3)));
+    return paths.map((abs) => {
+      const doc = readDoc(abs);
+      const date = doc.fields.date || basename(abs).slice(0, -3);
+      return {
+        date,
+        hn: num(doc.fields.hn),
+        hatena: num(doc.fields.hatena),
+        path: doc.path,
+        said: days.has(date),
+      };
+    }).sort((a, b) => a.date.localeCompare(b.date));
+  });
+}
+
+export function news(date: string): Doc | null {
+  const abs = room("ニュース", safeName(date).slice(0, 7), `${safeName(date)}.md`);
+  return existsSync(abs) ? readDoc(abs) : null;
+}
+
+/**
+ * その日の話題から選んだおすすめ。
+ *
+ * `見立て/` と同じ置きかた —— 話題は機械が集めたもので、おすすめはそれを
+ * 見てアイボが言ったものなので、**同じ紙に混ぜない**。無い日はふつうにある
+ * （`news.ts` を流したが `picks.ts` をまだ流していない日）。
+ */
+export function picksOn(date: string): Doc | null {
+  const abs = room("おすすめ", safeName(date).slice(0, 7), `${safeName(date)}.md`);
+  return existsSync(abs) ? readDoc(abs) : null;
+}
+
+// ---------------------------------------------------------------- 読んだ
+
+export interface ReadingHead {
+  readonly date: string;
+  readonly links: number;
+  /** どこから起こしたか（chrome / posts）。両方ある日がある */
+  readonly sources: readonly string[];
+  readonly path: string;
+}
+
+/**
+ * 読んだものは**ソースごとに1枚**（`chrome-<日付>.md` `posts-<日付>.md`）
+ * なので、日付でそのまま引けない。`投稿/` と同じ形。一覧では日ごとに畳む。
+ */
+export function readingList(): readonly ReadingHead[] {
+  const paths = listFiles(room("読んだ"), ".md");
+  return cached("reading", paths, () => {
+    const byDate = new Map<string, { links: number; sources: string[]; path: string }>();
+    for (const abs of paths) {
+      const m = basename(abs).match(/^(chrome|posts)-(\d{4}-\d{2}-\d{2})\.md$/);
+      if (!m) continue;
+      const doc = readDoc(abs);
+      const got = byDate.get(m[2]) ?? { links: 0, sources: [], path: doc.path };
+      got.links += num(doc.fields.links);
+      got.sources.push(m[1]);
+      byDate.set(m[2], got);
+    }
+    return [...byDate].map(([date, v]) => ({
+      date,
+      links: v.links,
+      sources: v.sources.sort(),
+      path: v.path,
+    })).sort((a, b) => a.date.localeCompare(b.date));
+  });
+}
+
+/** その日に読んだもの。ソースごとに1枚ずつ返す（無い日は空）。 */
+export function readingOn(date: string): readonly Doc[] {
+  const dir = room("読んだ", safeName(date).slice(0, 7));
+  if (!existsSync(dir)) return [];
+  const tail = `-${safeName(date)}.md`;
+  return listFiles(dir, ".md")
+    .filter((abs) => basename(abs).endsWith(tail))
+    .map((abs) => readDoc(abs));
+}
+
 // ---------------------------------------------------------------- 事典
 
 export interface EntityHead {
