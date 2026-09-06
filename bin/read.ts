@@ -769,6 +769,22 @@ export interface Summary {
   readonly stockOutlook: Doc | null;
   /** ひとつ前の確定日の評価額。まとめで向きを出すため */
   readonly stockBefore: number;
+  /**
+   * いちばん新しい日と、その前の日のニュース。新しい順。
+   *
+   * 2日なのは、まとめで「きのうと、その前」が並んで見えるように。
+   * おすすめは話題の外に持たせる —— 話題は機械が集めたもので、おすすめは
+   * それを見てアイボが言ったものなので、同じ紙に混ぜない（株と見立てと同じ）
+   */
+  readonly news: readonly NewsDay[];
+  readonly newsDays: number;
+}
+
+export interface NewsDay {
+  readonly head: NewsHead;
+  readonly doc: Doc;
+  /** その日のおすすめ。まだ選んでいない日は null */
+  readonly picks: Doc | null;
 }
 
 export function summary(): Summary | null {
@@ -817,6 +833,15 @@ export function summary(): Summary | null {
     stockOutlook: outlookOn(stockList().at(-1)?.date ?? ""),
     // 前の日と比べたいだけなので、1つ前の確定日から借りる（自分で計算しない）
     stockBefore: stockList().at(-2)?.value ?? 0,
+    // ニュースは新しい2日だけ。潜るのは一覧の仕事
+    news: newsList()
+      .slice(-2)
+      .reverse()
+      .flatMap((head) => {
+        const doc = news(head.date);
+        return doc ? [{ head, doc, picks: picksOn(head.date) }] : [];
+      }),
+    newsDays: newsList().length,
   };
 }
 

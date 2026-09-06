@@ -279,6 +279,15 @@ mark{background:var(--gold-wash);color:var(--ink);border-bottom:1px solid var(--
 .foot code{color:var(--ink-soft)}
 .err{color:var(--hp)}
 .note{color:var(--muted);font-size:12.5px;margin:0 0 16px}
+/* まとめのニュース。いちばん新しい日と、その前の日を横に並べる */
+.news-2{display:grid;grid-template-columns:1fr 1fr;gap:0 32px;margin:0 5px}
+.news-day{min-width:0}
+.news-day h3{font-size:16px;margin:0 0 4px;letter-spacing:.03em}
+.news-day h3 .when{color:var(--muted);font-size:12px;font-weight:400}
+.news-day .doc{margin:0}
+.news-day .doc h2{font-size:13.5px;margin:18px 0 8px}
+.news-day .said{margin-left:0;margin-right:0}
+@media (max-width:820px){.news-2{grid-template-columns:1fr;gap:28px 0}}
 </style>
 
 <nav class="bar"><div class="bar-in">
@@ -455,6 +464,13 @@ function md(text) {
     var oli = /^(\s*)\d+\.\s+(.*)$/.exec(line);
     if (oli) { open("ol"); out.push('<li class="lv' + depth(line) + '">' + inline(oli[2]) + "</li>"); i++; continue; }
     if (!line.trim()) { close(); i++; continue; }
+    // 箇条書きの中で字下げした行は、前の項目の続き（ニュースの題の下の URL）。
+    // 段落にすると箇条書きが閉じて、1本ごとに紙が縦に伸びる
+    if (kind && /^\s+\S/.test(line) && /<\/li>$/.test(out[out.length - 1])) {
+      out[out.length - 1] = out[out.length - 1].replace(/<\/li>$/, "<br>" + inline(line.trim()) + "</li>");
+      i++;
+      continue;
+    }
 
     close();
     var para = [line];
@@ -837,6 +853,30 @@ function renderSummary(s) {
     (s.diaryComments || []).forEach(function (c) { out.push(saidBlock(c)); });
     out.push('<p class="more">▶ <a href="#/list/diary">日記をぜんぶ読む</a>' +
       nextRun(s.nightly) + "</p>");
+    out.push("</section>");
+  }
+
+  if (s.news && s.news.length) {
+    out.push("<section>");
+    out.push(secHead("ニュース", "その日 外で 話されて いたこと",
+      "拠点で唯一、polidog でも AI でもない記録。Hacker News とはてなブックマーク（IT）の" +
+      "<b>見出しだけ</b>で、本文は読んでいない。点数は書かない —— あとから動くので。" +
+      "ぜんぶで <b>" + num(s.newsDays) + "</b> 日ぶん。"));
+    out.push('<div class="news-2">');
+    s.news.forEach(function (d, i) {
+      var h = d.head || {};
+      out.push('<div class="news-day">');
+      out.push('<h3><a href="' + docHref(d.doc.path) + '">' + esc(h.date || "") + "</a>" +
+        (i === 0 ? "" : '<span class="when">　その前の日</span>') + "</h3>");
+      out.push('<p class="note">HN ' + num(h.hn) + (h.hatena ? "　はてブ " + num(h.hatena) : "") + "</p>");
+      // 話題そのもの（機械が集めたもの）
+      out.push('<div class="doc">' + md(d.doc.body) + "</div>");
+      // おすすめは話題の外に置く。話題の一部に見えてはいけない（株と見立てと同じ）
+      if (d.picks) out.push(midateBlock(d.picks));
+      out.push("</div>");
+    });
+    out.push("</div>");
+    out.push('<p class="more">▶ <a href="#/list/news">' + num(s.newsDays) + "日ぶんの話題を読む</a></p>");
     out.push("</section>");
   }
 
